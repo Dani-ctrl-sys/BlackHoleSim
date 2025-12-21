@@ -43,6 +43,33 @@ int main() {
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
+    //DEFINE EL LIENZO (Pantalla completa cuádruple)
+    //Dos triángulos que cubren toda la pantalla de -1 a 1
+    float vertices[] = {
+        //posiciones (x, y)
+        -1.0f, 1.0f,  //Arriba a la izquierda
+        -1.0f, -1.0f,  //Abajo a la izquierda
+        1.0f, -1.0f,   //Abajo a la derecha
+        
+        -1.0f, 1.0f,  //Arriba a la izquierda
+        1.0f, -1.0f,  //Abajo a la derecha
+        1.0f, 1.0f,   //Arriba a la derecha
+    };
+
+    //CONFIGURAR BUFFERS
+    unsigned int VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    //Indica a OpenGL cómo leer los atributos (solo posición: 2 flotantes)
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
     // Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
         // Input
@@ -51,6 +78,10 @@ int main() {
         // Renderizado
         glClearColor(0.05f, 0.05f, 0.1f, 1.0f);  // Fondo azul oscuro espacial
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        //Dibujar el lienzo
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         // Swap buffers y procesar eventos
         glfwSwapBuffers(window);
