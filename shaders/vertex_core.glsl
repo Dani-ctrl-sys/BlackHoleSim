@@ -1,16 +1,18 @@
 #version 330 core
+layout (location = 0) in vec2 aPos;
 
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aColor;
+//Enviamos la posición al sombreador de fragmentos para que la sepa
+//en qué coordenada de píxel está trabajando.
 
-out vec3 vertexColor;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
+out vec2 fragCoord;
 
 void main()
 {
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    vertexColor = aColor;
+    //Pasar la posición (-1 a 1) directamente.
+    //Esto fija el cuadrante a las esquinas de la pantalla.
+    gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+
+    //Pasamos la posición al sombreador de fragmentos.
+    fragCoord = aPos;
+
 }
