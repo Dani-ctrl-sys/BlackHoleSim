@@ -10,7 +10,6 @@
 // --- CONFIGURACIÓN DE LA SIMULACIÓN ---
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
-const float ASPECT_RATIO = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
 //Estructura simple para un vector de 3 componentes (Color RGB)
 struct vec3 { float r,g,b;};
 
@@ -223,12 +222,29 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
-        //1. CALCULAR FÍSICA (CPU)
-        RayTraceCPU(pixelBuffer, WINDOW_WIDTH, WINDOW_HEIGHT, ASPECT_RATIO);
+        //CÁLCULO DINÁMICO DE ASPECTO ---
+        int currentW, currentH;
+        glfwGetFramebufferSize(window, &currentW, &currentH); // Preguntamos tamaño real
 
-        //2. SUBIR DATOS A LA GPU
+        //Protección contra minimizado (evitar división por 0)
+        if (currentH == 0) currentH = 1;
+        if (currentW == 0) currentW = 1;
+
+        //Calculamos la proporción actual de la ventana
+        float currentAspect = (float)currentW / (float)currentH;
+        
+        //Redimensionar el buffer si el tamaño cambió
+        size_t requiredSize = currentW * currentH * 3;
+        if (pixelBuffer.size() != requiredSize) {
+            pixelBuffer.resize(requiredSize);
+        }
+
+        //1. CALCULAR FÍSICA (CPU) con dimensiones actuales
+        RayTraceCPU(pixelBuffer, currentW, currentH, currentAspect);
+
+        //2. SUBIR DATOS A LA GPU con dimensiones actuales
         glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB, GL_FLOAT, pixelBuffer.data());
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, currentW, currentH, 0, GL_RGB, GL_FLOAT, pixelBuffer.data());
 
         //3. DIBUJAR
         glClear(GL_COLOR_BUFFER_BIT);
