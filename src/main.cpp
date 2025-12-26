@@ -92,6 +92,7 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     }
     catch (std::ifstream::failure& e) {
         std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+        return 0;
     }
 
     const char* vShaderCode = vertexCode.c_str();
@@ -216,7 +217,7 @@ int main() {
     std::vector<float> pixelBuffer(WINDOW_WIDTH * WINDOW_HEIGHT * 3);
 
     glUseProgram(shaderProgram);
-    glUniform1i(glGetUniformLocation(shaderProgram, "screentexture"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgram, "screenTexture"), 0);
 
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
