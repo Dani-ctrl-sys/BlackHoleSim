@@ -10,22 +10,22 @@
 // --- CONFIGURACIÓN DE LA SIMULACIÓN ---
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
+const float ASPECT_RATIO = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
 //Estructura simple para un vector de 3 componentes (Color RGB)
 struct vec3 { float r,g,b;};
 
 // --- MOTOR DE FÍSICA (CPU) ---
 // Aquí es donde ocurrirá la magia de los Agujeros Negros más adelante.
 // Por ahora, hacemos un "Ray Caster" simple: si el rayo golpea un círculo, pintamos blanco.
-void RayTraceCPU(std::vector<float>& buffer, int w, int h){
+void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
     for(int y=0; y < h; y++){
         for(int x=0; x < w; x++){
             //1. Normalizar coordenadas de píxel a espacio [-1, 1]
             // (Similar a lo que hacía tu shader, pero ahora en C++)
-            float u = (float)x / (float)w;
-            float v = (float)y / (float)h;
+            float u = (float)x / (float)w * 2.0f - 1.0f;
+            float v = (float)y / (float)h * 2.0f - 1.0f;
 
             //Corregir relación de aspecto (para que el círculo no se vea ovalado)
-            float aspect = (float)w / (float)h;
             u *= aspect;
 
             //2. Lógica de Trazado (Geometría básica)
@@ -223,7 +223,7 @@ int main() {
         processInput(window);
 
         //1. CALCULAR FÍSICA (CPU)
-        RayTraceCPU(pixelBuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
+        RayTraceCPU(pixelBuffer, WINDOW_WIDTH, WINDOW_HEIGHT, ASPECT_RATIO);
 
         //2. SUBIR DATOS A LA GPU
         glBindTexture(GL_TEXTURE_2D, texture);
