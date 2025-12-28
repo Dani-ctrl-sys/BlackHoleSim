@@ -10,43 +10,103 @@
 // --- CONFIGURACIÓN DE LA SIMULACIÓN ---
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
-//Estructura simple para un vector de 3 componentes (Color RGB)
-struct vec3 { float r,g,b;};
+
+//--- ESTRUCTURA MATEMÁTICA VECTORIAL ---
+struct vec3 {
+    float x,y,z;
+
+    //Sobrecarga de operadores para facilitar las matemáticas
+    vec3 operator+(const vec3& v) const {return {x + v.x, y + v.y, z + v.z};}
+    vec3 operator-(const vec3& v) const {return {x - v.x, y - v.y, z - v.z};}
+    vec3 operator*(float s) const {return {x * s, y * s, z * s};}
+};
+
+//Funciones auxiliares para vectores
+float dot(const vec3& a, const vec3& b){return a.x*b.x + a.y*b.y + a.z*b.z;}
+vec3 normalize(const vec3& v){
+    float len = std::sqrt(dot(v, v));
+    return {v.x/len, v.y/len, v.z/len};
+}
 
 // --- MOTOR DE FÍSICA (CPU) ---
-// Aquí es donde ocurrirá la magia de los Agujeros Negros más adelante.
-// Por ahora, hacemos un "Ray Caster" simple: si el rayo golpea un círculo, pintamos blanco.
+
+// Comprueba si un rayo interseca una esfera.
+// ro: Origen del rayo (Posición de la cámara)
+// rd: Dirección del rayo (Hacia dónde apunta el píxel)
+// center: Posición de la esfera (Centro del agujero negro)
+// radius: Radio del horizonte de eventos
+// Devuelve: distancia a la intersección o -1.0 si no se detecta.
+float hit_sphere(const vec3& ro, const vec3& rd, const vec3& center, float radius){
+    vec3 oc = ro - center;
+    // Resolviendo la ecuación cuadrática para la intersección rayo-esfera: t^2*dot(rd,rd) + 2*t*dot(oc,rd) + dot(oc,oc) - r^2 = 0
+    // a = 1 (ya que la dirección del rayo está normalizada)
+    float b = 2.0f * dot(oc, rd);
+    float c = dot(oc, oc) - radius * radius;
+    float discriminant = b*b - 4.0f*c;
+
+    if (discriminant < 0){
+        return -1.0f; //Sin impacto (La luz pasa)
+    } else {
+        //Devuelve la distancia de impacto más cercana
+        return (-b - std::sqrt(discriminant)) / 2.0f;
+    }
+}
+
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
+    //1. DEFINIR LA ESCENA FÍSICA
+    // Configuración de la cámara
+    vec3 cameraPos = {0.0f, 0.0f, 3.0f}; // La cámara está en Z=3, mirando a Z=0
+    
+    // Propiedades del agujero negro
+    // Radio de Schwarzschild (Rs) = 2GM/c^2. Supongamos que las unidades son G=1, M=1, c=1 => Rs = 2.0
+    // Actualmente, el radio se establece en 0.5 para que se ajuste correctamente a la pantalla.
+    vec3 bhCenter = {0.0f, 0.0f, 0.0f};
+    float bhRadius = 0.5f;
+
     for(int y=0; y < h; y++){
         for(int x=0; x < w; x++){
-            //1. Normalizar coordenadas de píxel a espacio [-1, 1]
-            // (Similar a lo que hacía tu shader, pero ahora en C++)
+
+            //2. GENERAR RAYO (Cámara -> Píxel)
+            // Coordenadas del dispositivo normalizadas [-1, 1]
             float u = (float)x / (float)w * 2.0f - 1.0f;
             float v = (float)y / (float)h * 2.0f - 1.0f;
+            u*=aspect; //Corregir la distorsión de aspecto
 
-            //Corregir relación de aspecto (para que el círculo no se vea ovalado)
-            u *= aspect;
+            // Ray Origin es la cámara
+            vec3 ro = cameraPos;
+            // Dirección del rayo: Desde la cámara hacia el plano de la pantalla en Z=2.0 (pantalla virtual)
+            // La posición del píxel en el espacio 3D es aproximadamente (u, v, 2.0)
+            vec3 pixelPos = {u, v, 2.0f};
+            vec3 rd = normalize(pixelPos - ro);
 
-            //2. Lógica de Trazado (Geometría básica)
-            // Ecuación del círculo: x^2 + y^2 = r^2
-            float dist = std::sqrt(u*u + v*v);
-            
+            //3. TRACE RAY (Física Newtoniana por ahora)
+            float t = hit_sphere(ro, rd, bhCenter, bhRadius);
+
             vec3 color = {0.0f, 0.0f, 0.0f}; //Color base: Negro (Espacio)
 
-            if(dist < 0.5f){
-                // Si estamos dentro del radio 0.5, pintamos el "Agujero" (o planeta)
-                color = {1.0f, 0.5f, 0.2f}; //Naranja
+            if(t > 0.0f){
+                // ¡GOLPE! lógica de física
+                color = {0.0f, 0.0f, 0.0f}; // Event Horizon es negro puro
             } else{
-                //Fondo con gradiente suave
-                color = {0.1f, 0.1f, 0.2f};
+                // MISS - Dibujar fondo
+                // Gradiente de campo de estrellas simple puramente para referencia visual
+                color = {0.05f, 0.05f, 0.1f};
+                // Agreguemos una aproximación de "Disco de acreción" (solo visual por ahora)
+                // Distancia desde la línea central
+                vec3 closestPoint = ro + rd * dot(bhCenter - ro, rd);
+                float distToCenter = std::sqrt(dot(closestPoint, closestPoint));
+
+                //Si el valor distinto está entre 0,6 y 1,2, píntalo de naranja (Disco)
+                if(distToCenter > 0.6f && distToCenter < 1.4f){
+                    color = {0.8f, 0.4f, 0.1f};
+                }
             }
 
-            //3. Escribir en el buffer (R, G, B)
-            // OpenGL espera los datos en una fila larga plana
+            // 4. ESCRIBIR EN EL BUFFER
             int index = (y*w+x)*3;
-            buffer[index + 0]=color.r;
-            buffer[index + 1]=color.g;
-            buffer[index + 2]=color.b;
+            buffer[index + 0]=color.x;
+            buffer[index + 1]=color.y;
+            buffer[index + 2]=color.z;
         }
     }
 }
