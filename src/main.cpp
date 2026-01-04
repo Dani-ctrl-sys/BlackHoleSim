@@ -19,94 +19,101 @@ struct vec3 {
     vec3 operator+(const vec3& v) const {return {x + v.x, y + v.y, z + v.z};}
     vec3 operator-(const vec3& v) const {return {x - v.x, y - v.y, z - v.z};}
     vec3 operator*(float s) const {return {x * s, y * s, z * s};}
+
+    //Necesario para la física: Producto Cruz
+    vec3 cross(const vec3& v) const {
+        return{y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
+    }
 };
 
 //Funciones auxiliares para vectores
 float dot(const vec3& a, const vec3& b){return a.x*b.x + a.y*b.y + a.z*b.z;}
+float length_sq(const vec3& v){return dot(v,v);}
+float length(const vec3& v){return std::sqrt(length_sq(v));}
+
 vec3 normalize(const vec3& v){
-    float len = std::sqrt(dot(v, v));
-    return {v.x/len, v.y/len, v.z/len};
+    float len = length(v);
+    return (len > 0) ? vec3{v.x/len, v.y/len, v.z/len} : vec3{0,0,0};
 }
 
-// --- MOTOR DE FÍSICA (CPU) ---
+// --- MOTOR DE FÍSICA RELATIVISTA (CPU) ---
 
-// Comprueba si un rayo interseca una esfera.
-// ro: Origen del rayo (Posición de la cámara)
-// rd: Dirección del rayo (Hacia dónde apunta el píxel)
-// center: Posición de la esfera (Centro del agujero negro)
-// radius: Radio del horizonte de eventos
-// Devuelve: distancia a la intersección o -1.0 si no se detecta.
-float hit_sphere(const vec3& ro, const vec3& rd, const vec3& center, float radius){
-    vec3 oc = ro - center;
-    // Resolviendo la ecuación cuadrática para la intersección rayo-esfera: t^2*dot(rd,rd) + 2*t*dot(oc,rd) + dot(oc,oc) - r^2 = 0
-    // a = 1 (ya que la dirección del rayo está normalizada)
-    float b = 2.0f * dot(oc, rd);
-    float c = dot(oc, oc) - radius * radius;
-    float discriminant = b*b - 4.0f*c;
+//Constantes físicas del sistema (Unidades Naturales: G=1, c=1)
+const float RS = 0.5f; // Radio de Schwarzschild (Horizonte de eventos)
+const float ISCO = 3.0f * RS; // Órbita Circular Estable Más Interna (para el disco)
 
-    if (discriminant < 0){
-        return -1.0f; //Sin impacto (La luz pasa)
-    } else {
-        //Devuelve la distancia de impacto más cercana
-        return (-b - std::sqrt(discriminant)) / 2.0f;
+//Integra el rayo paso a paso a través del espacio curvo
+// Devuelve el color final del píxel
+vec3 integrate_geodesic(vec3 ro, vec3 rd){
+    vec3 pos = ro;
+    vec3 vel = rd; //La velocidad de la luz c=1, dirección inicial
+
+    float dt = 0.05f; //Tamaño del paso del tiempo (delta time)
+    //ADVERTENCIA: dt muy grande = simulación rápida pero imprecisa
+    // dt muy pequeño = simulación precisa pero lenta
+
+    // Límite de pasos para evitar bucles infinitos si la luz orbita
+    for (int i = 0; i < 200; i++){
+        float r2 = length_sq(pos); //Distancia al cuadrado al centro (0,0,0)
+        float r = std::sqrt(r2); //Distancia actual
+
+        //1. CONDICIONES DE TERMINACIÓN
+
+        //A) ¿Cayó en el agujero negro?
+        if(r <= RS){
+            return vec3{0.0f, 0.0f, 0.0f}; //Negro absoluto
+        }
+
+        //B) ¿Escapó al infinito? (Lejos del centro)
+        if (r > 15.f){
+            //Dibujamos un fondo de estrellas simple basado en la dirección actual
+            // Esto nos permitirá ver la distorsión de la luz (lente gravitacional)
+            vec3 dir = normalize(vel);
+            float star = std::pow(std::abs(dir.y), 20.0f); //Estrellas falsas
+            return {0.05f + star, 0.05f + star, 0.1f};
+        }
+
+        // 2. FÍSICA: Calcular la aceleración (Curvatura)
+        // Ecuación de movimiento para un fotón en Schwarzschild.
+        // Fórmula aproximada de aceleración: a = -1.5 * Rs * h^2 / r^5 * pos
+        // Donde h es el momento angular por unidad de masa.
+
+        vec3 h_vec = pos.cross(vel); //Momento angular (r x v)
+        float h2 = length_sq(h_vec); //Magnitud al cuadrado
+
+        // Fuerza de la gravedad efectiva para la luz
+        //Nota: En Newton la fuerza es 1/r^2. En RG para la luz hay un término extra 1/r^4
+        vec3 acc = pos * (-1.5f * RS * h2 / (r2 * r2 * r2));
+
+        //3. INTEGRACIÓN (Método de Euler Semi-implícito)
+        vel = vel + acc * dt; //Actualizar velocidad (dirección se curva)
+        pos = pos + vel * dt; //Actualizar posición
     }
+
+    return {0.05f, 0.05f, 0.01f}; //Si se acaban los pasos, devolver fondo
 }
 
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
-    //1. DEFINIR LA ESCENA FÍSICA
-    // Configuración de la cámara
-    vec3 cameraPos = {0.0f, 0.0f, 3.0f}; // La cámara está en Z=3, mirando a Z=0
-    
-    // Propiedades del agujero negro
-    // Radio de Schwarzschild (Rs) = 2GM/c^2. Supongamos que las unidades son G=1, M=1, c=1 => Rs = 2.0
-    // Actualmente, el radio se establece en 0.5 para que se ajuste correctamente a la pantalla.
-    vec3 bhCenter = {0.0f, 0.0f, 0.0f};
-    float bhRadius = 0.5f;
+    vec3 cameraPos = {0.0f, 0.0f, 6.0f}; //Alejamos un poco la cámara
 
+    //#pragma omp parallel for // Descomenta si tienes OpenMP habilitado para acelerar
     for(int y=0; y < h; y++){
         for(int x=0; x < w; x++){
-
-            //2. GENERAR RAYO (Cámara -> Píxel)
-            // Coordenadas del dispositivo normalizadas [-1, 1]
+            //Coordenadas UV
             float u = (float)x / (float)w * 2.0f - 1.0f;
             float v = (float)y / (float)h * 2.0f - 1.0f;
-            u*=aspect; //Corregir la distorsión de aspecto
+            u *= aspect;
 
-            // Ray Origin es la cámara
             vec3 ro = cameraPos;
-            // Dirección del rayo: Desde la cámara hacia el plano de la pantalla en Z=2.0 (pantalla virtual)
-            // La posición del píxel en el espacio 3D es aproximadamente (u, v, 2.0)
-            vec3 pixelPos = {u, v, 2.0f};
+            vec3 pixelPos = {u, v, 4.0f}; //Pantalla virtual frente a la cámara
             vec3 rd = normalize(pixelPos - ro);
 
-            //3. TRACE RAY (Física Newtoniana por ahora)
-            float t = hit_sphere(ro, rd, bhCenter, bhRadius);
-
-            vec3 color = {0.0f, 0.0f, 0.0f}; //Color base: Negro (Espacio)
-
-            if(t > 0.0f){
-                // ¡GOLPE! lógica de física
-                color = {0.0f, 0.0f, 0.0f}; // Event Horizon es negro puro
-            } else{
-                // MISS - Dibujar fondo
-                // Gradiente de campo de estrellas simple puramente para referencia visual
-                color = {0.05f, 0.05f, 0.1f};
-                // Agreguemos una aproximación de "Disco de acreción" (solo visual por ahora)
-                // Distancia desde la línea central
-                vec3 closestPoint = ro + rd * dot(bhCenter - ro, rd);
-                float distToCenter = std::sqrt(dot(closestPoint, closestPoint));
-
-                //Si el valor distinto está entre 0,6 y 1,2, píntalo de naranja (Disco)
-                if(distToCenter > 0.6f && distToCenter < 1.4f){
-                    color = {0.8f, 0.4f, 0.1f};
-                }
-            }
-
-            // 4. ESCRIBIR EN EL BUFFER
-            int index = (y*w+x)*3;
-            buffer[index + 0]=color.x;
-            buffer[index + 1]=color.y;
-            buffer[index + 2]=color.z;
+            vec3 color = integrate_geodesic(ro, rd);
+            
+            int index = (y * w + x) * 3;
+            buffer[index] = color.x;
+            buffer[index + 1] = color.y;
+            buffer[index + 2] = color.z;
         }
     }
 }
