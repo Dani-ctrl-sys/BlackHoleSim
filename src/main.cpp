@@ -70,7 +70,7 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
             // Esto nos permitirá ver la distorsión de la luz (lente gravitacional)
             vec3 dir = normalize(vel);
             float horizont_band =  1.0f - std::abs(dir.y);
-            float star = std::pow(horizont_band,50.0f); //Estrellas más visibles
+            float star = std::pow(horizont_band, 3.0f); //Banda horizontal de estrellas
             return {0.05f + star, 0.05f + star, 0.1f};
         }
 
