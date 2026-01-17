@@ -96,7 +96,7 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
 }
 
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
-    vec3 cameraPos = {0.0f, 0.0f, 6.0f}; //Cámara centrada para debug
+    vec3 cameraPos = {0.0f, 1.5f, 6.0f}; //Cámara centrada para debug
 
     //#pragma omp parallel for // Descomenta si tienes OpenMP habilitado para acelerar
     for(int y=0; y < h; y++){
