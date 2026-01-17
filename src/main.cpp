@@ -83,7 +83,7 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
 
         // Fuerza de la gravedad efectiva para la luz
         //Nota: En Newton la fuerza es 1/r^2. En RG para la luz hay un término extra 1/r^4
-        vec3 acc = pos * (-1.5f * RS * h2 / (r2 * r2 * r2));
+        vec3 acc = pos * (-1.5f * RS * h2 / (r2 * r2 * r));
 
         //3. INTEGRACIÓN (Método de Euler Semi-implícito)
         vel = vel + acc * dt; //Actualizar velocidad (dirección se curva)
@@ -285,33 +285,40 @@ int main() {
     glUseProgram(shaderProgram);
     glUniform1i(glGetUniformLocation(shaderProgram, "screenTexture"), 0);
 
+    const float RENDER_SCALE = 0.25f;
+
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
         //CÁLCULO DINÁMICO DE ASPECTO ---
-        int currentW, currentH;
-        glfwGetFramebufferSize(window, &currentW, &currentH); // Preguntamos tamaño real
+        int windowW, windowH;
+        glfwGetFramebufferSize(window, &windowW, &windowH); // Preguntamos tamaño real
 
         //Protección contra minimizado (evitar división por 0)
-        if (currentH == 0) currentH = 1;
-        if (currentW == 0) currentW = 1;
+        if (windowH == 0) windowH = 1;
+        if (windowW == 0) windowW = 1;
 
-        //Calculamos la proporción actual de la ventana
-        float currentAspect = (float)currentW / (float)currentH;
+        int renderW = (int)(windowW * RENDER_SCALE);
+        int renderH = (int)(windowH * RENDER_SCALE);
+
+        if(renderW < 1) renderW = 1;
+        if(renderH < 1) renderH = 1;
+
+        float renderAspect = (float)renderW / (float)renderH;
         
         //Redimensionar el buffer si el tamaño cambió
-        size_t requiredSize = currentW * currentH * 3;
+        size_t requiredSize = renderW * renderH * 3;
         if (pixelBuffer.size() != requiredSize) {
             pixelBuffer.resize(requiredSize);
         }
 
         //1. CALCULAR FÍSICA (CPU) con dimensiones actuales
-        RayTraceCPU(pixelBuffer, currentW, currentH, currentAspect);
+        RayTraceCPU(pixelBuffer, renderW, renderH, renderAspect);
 
         //2. SUBIR DATOS A LA GPU con dimensiones actuales
         glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, currentW, currentH, 0, GL_RGB, GL_FLOAT, pixelBuffer.data());
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, renderW, renderH, 0, GL_RGB, GL_FLOAT, pixelBuffer.data());
 
         //3. DIBUJAR
         glClear(GL_COLOR_BUFFER_BIT);
