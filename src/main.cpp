@@ -69,10 +69,10 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
             //Fondo oscuro de espacio profundo con estrellas visibles
             vec3 dir = normalize(vel);
             float horizont_band = 1.0f - std::abs(dir.y);
-            float star = std::pow(horizont_band, 3.0f); 
+            float star = std::pow(horizont_band, 50.0f); 
             
             // Fondo oscuro + banda brillante de estrellas
-            return {0.05f + star * 0.7f, 0.05f + star * 0.7f, 0.1f + star * 0.5f};
+            return {0.05f + star, 0.05f + star, 0.1f + star * 0.5f};
         }
 
         // 2. FÍSICA: Calcular la aceleración (Curvatura)
