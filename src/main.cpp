@@ -66,13 +66,13 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
 
         //B) ¿Escapó al infinito? (Lejos del centro)
         if (r > 15.f){
-            //Fondo muy brillante con banda de estrellas horizontal
+            //Fondo oscuro de espacio profundo con estrellas visibles
             vec3 dir = normalize(vel);
             float horizont_band = 1.0f - std::abs(dir.y);
-            float star = std::pow(horizont_band, 2.0f); 
+            float star = std::pow(horizont_band, 3.0f); 
             
-            // Fondo muy brillante + estrellas
-            return {0.6f + star * 0.3f, 0.6f + star * 0.3f, 0.8f};
+            // Fondo oscuro + banda brillante de estrellas
+            return {0.05f + star * 0.7f, 0.05f + star * 0.7f, 0.1f + star * 0.5f};
         }
 
         // 2. FÍSICA: Calcular la aceleración (Curvatura)
@@ -92,7 +92,7 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
         pos = pos + vel * dt; //Actualizar posición
     }
 
-    return {0.5f, 0.5f, 0.7f}; //Si se acaban los pasos, devolver fondo brillante
+    return {0.05f, 0.05f, 0.1f}; //Si se acaban los pasos, fondo oscuro
 }
 
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
