@@ -66,12 +66,13 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
 
         //B) ¿Escapó al infinito? (Lejos del centro)
         if (r > 15.f){
-            //Dibujamos un fondo de estrellas simple basado en la dirección actual
-            // Esto nos permitirá ver la distorsión de la luz (lente gravitacional)
+            //Fondo muy brillante con banda de estrellas horizontal
             vec3 dir = normalize(vel);
-            float horizont_band =  1.0f - std::abs(dir.y);
-            float star = std::pow(horizont_band, 3.0f); //Banda horizontal de estrellas
-            return {0.05f + star, 0.05f + star, 0.1f};
+            float horizont_band = 1.0f - std::abs(dir.y);
+            float star = std::pow(horizont_band, 2.0f); 
+            
+            // Fondo muy brillante + estrellas
+            return {0.6f + star * 0.3f, 0.6f + star * 0.3f, 0.8f};
         }
 
         // 2. FÍSICA: Calcular la aceleración (Curvatura)
@@ -91,11 +92,11 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
         pos = pos + vel * dt; //Actualizar posición
     }
 
-    return {0.05f, 0.05f, 0.01f}; //Si se acaban los pasos, devolver fondo
+    return {0.5f, 0.5f, 0.7f}; //Si se acaban los pasos, devolver fondo brillante
 }
 
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
-    vec3 cameraPos = {0.0f, 1.5f, 6.0f}; //Alejamos un poco la cámara
+    vec3 cameraPos = {0.0f, 0.0f, 6.0f}; //Cámara centrada para debug
 
     //#pragma omp parallel for // Descomenta si tienes OpenMP habilitado para acelerar
     for(int y=0; y < h; y++){
@@ -106,7 +107,7 @@ void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
             u *= aspect;
 
             vec3 ro = cameraPos;
-            vec3 pixelPos = {u, v - 0.5f, 4.0f}; //Pantalla virtual frente a la cámara
+            vec3 pixelPos = {u, v, 4.0f}; //Pantalla virtual centrada
             vec3 rd = normalize(pixelPos - ro);
 
             vec3 color = integrate_geodesic(ro, rd);
