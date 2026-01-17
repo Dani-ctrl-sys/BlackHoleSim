@@ -110,6 +110,11 @@ void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
 
             vec3 color = integrate_geodesic(ro, rd);
             
+            // DEBUG: Print first pixel to see what we're calculating
+            if(x == w/2 && y == h/2) {
+                std::cout << "Center pixel color: " << color.x << ", " << color.y << ", " << color.z << std::endl;
+            }
+            
             int index = (y * w + x) * 3;
             buffer[index] = color.x;
             buffer[index + 1] = color.y;
