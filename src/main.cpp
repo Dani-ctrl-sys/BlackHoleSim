@@ -69,7 +69,8 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
             //Dibujamos un fondo de estrellas simple basado en la dirección actual
             // Esto nos permitirá ver la distorsión de la luz (lente gravitacional)
             vec3 dir = normalize(vel);
-            float star = std::pow(std::abs(dir.y), 2.0f); //Estrellas más visibles
+            float horizont_band =  1.0f - std::abs(dir.y);
+            float star = std::pow(horizont_band,50.0f); //Estrellas más visibles
             return {0.05f + star, 0.05f + star, 0.1f};
         }
 
@@ -94,7 +95,7 @@ vec3 integrate_geodesic(vec3 ro, vec3 rd){
 }
 
 void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
-    vec3 cameraPos = {0.0f, 0.0f, 6.0f}; //Alejamos un poco la cámara
+    vec3 cameraPos = {0.0f, 1.5f, 6.0f}; //Alejamos un poco la cámara
 
     //#pragma omp parallel for // Descomenta si tienes OpenMP habilitado para acelerar
     for(int y=0; y < h; y++){
@@ -105,7 +106,7 @@ void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
             u *= aspect;
 
             vec3 ro = cameraPos;
-            vec3 pixelPos = {u, v, 4.0f}; //Pantalla virtual frente a la cámara
+            vec3 pixelPos = {u, v - 0.5f, 4.0f}; //Pantalla virtual frente a la cámara
             vec3 rd = normalize(pixelPos - ro);
 
             vec3 color = integrate_geodesic(ro, rd);
