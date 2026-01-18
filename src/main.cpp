@@ -42,89 +42,6 @@ vec3 normalize(const vec3& v){
 const float RS = 0.5f; // Radio de Schwarzschild (Horizonte de eventos)
 const float ISCO = 3.0f * RS; // Órbita Circular Estable Más Interna (para el disco)
 
-//Integra el rayo paso a paso a través del espacio curvo
-// Devuelve el color final del píxel
-vec3 integrate_geodesic(vec3 ro, vec3 rd){
-    vec3 pos = ro;
-    vec3 vel = rd; //La velocidad de la luz c=1, dirección inicial
-
-    float dt = 0.05f; //Tamaño del paso del tiempo (delta time)
-    //ADVERTENCIA: dt muy grande = simulación rápida pero imprecisa
-    // dt muy pequeño = simulación precisa pero lenta
-
-    // Límite de pasos para evitar bucles infinitos si la luz orbita
-    for (int i = 0; i < 200; i++){
-        float r2 = length_sq(pos); //Distancia al cuadrado al centro (0,0,0)
-        float r = std::sqrt(r2); //Distancia actual
-
-        //1. CONDICIONES DE TERMINACIÓN
-
-        //A) ¿Cayó en el agujero negro?
-        if(r <= RS){
-            return vec3{0.0f, 0.0f, 0.0f}; //Negro absoluto
-        }
-
-        //B) ¿Escapó al infinito? (Lejos del centro)
-        if (r > 15.f){
-            //Fondo oscuro de espacio profundo con estrellas visibles
-            vec3 dir = normalize(vel);
-            float horizont_band = 1.0f - std::abs(dir.y);
-            float star = std::pow(horizont_band, 10.0f); 
-            
-            // Fondo oscuro + banda brillante de estrellas
-            return {0.05f + star, 0.05f + star, 0.1f + star * 0.5f};
-        }
-
-        // 2. FÍSICA: Calcular la aceleración (Curvatura)
-        // Ecuación de movimiento para un fotón en Schwarzschild.
-        // Fórmula aproximada de aceleración: a = -1.5 * Rs * h^2 / r^5 * pos
-        // Donde h es el momento angular por unidad de masa.
-
-        vec3 h_vec = pos.cross(vel); //Momento angular (r x v)
-        float h2 = length_sq(h_vec); //Magnitud al cuadrado
-
-        // Fuerza de la gravedad efectiva para la luz
-        //Nota: En Newton la fuerza es 1/r^2. En RG para la luz hay un término extra 1/r^4
-        vec3 acc = pos * (-1.5f * RS * h2 / (r2 * r2 * r));
-
-        //3. INTEGRACIÓN (Método de Euler Semi-implícito)
-        vel = vel + acc * dt; //Actualizar velocidad (dirección se curva)
-        pos = pos + vel * dt; //Actualizar posición
-    }
-
-    return {0.05f, 0.05f, 0.1f}; //Si se acaban los pasos, fondo oscuro
-}
-
-void RayTraceCPU(std::vector<float>& buffer, int w, int h, float aspect){
-    vec3 cameraPos = {0.0f, 0.0f, 6.0f}; //Cámara centrada para debug
-
-    //#pragma omp parallel for // Descomenta si tienes OpenMP habilitado para acelerar
-    for(int y=0; y < h; y++){
-        for(int x=0; x < w; x++){
-            //Coordenadas UV
-            float u = (float)x / (float)w * 2.0f - 1.0f;
-            float v = (float)y / (float)h * 2.0f - 1.0f;
-            u *= aspect;
-
-            vec3 ro = cameraPos;
-            vec3 pixelPos = {u, v, 4.0f}; //Pantalla virtual centrada
-            vec3 rd = normalize(pixelPos - ro);
-
-            vec3 color = integrate_geodesic(ro, rd);
-            
-            // DEBUG: Print first pixel to see what we're calculating
-            if(x == w/2 && y == h/2) {
-                std::cout << "Center pixel color: " << color.x << ", " << color.y << ", " << color.z << std::endl;
-            }
-            
-            int index = (y * w + x) * 3;
-            buffer[index] = color.x;
-            buffer[index + 1] = color.y;
-            buffer[index + 2] = color.z;
-        }
-    }
-}
-
 // Callback para redimensionar la ventana
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
@@ -290,7 +207,6 @@ int main() {
     std::vector<float> pixelBuffer(WINDOW_WIDTH * WINDOW_HEIGHT * 3);
 
     glUseProgram(shaderProgram);
-    glUniform1i(glGetUniformLocation(shaderProgram, "screenTexture"), 0);
 
     const float RENDER_SCALE = 0.25f;
 
