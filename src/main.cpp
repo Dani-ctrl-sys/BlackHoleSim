@@ -298,38 +298,31 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
-        //CÁLCULO DINÁMICO DE ASPECTO ---
-        int windowW, windowH;
-        glfwGetFramebufferSize(window, &windowW, &windowH); // Preguntamos tamaño real
+        // 1. Obtener tamaño real
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
 
-        //Protección contra minimizado (evitar división por 0)
-        if (windowH == 0) windowH = 1;
-        if (windowW == 0) windowW = 1;
-
-        int renderW = (int)(windowW * RENDER_SCALE);
-        int renderH = (int)(windowH * RENDER_SCALE);
-
-        if(renderW < 1) renderW = 1;
-        if(renderH < 1) renderH = 1;
-
-        float renderAspect = (float)renderW / (float)renderH;
-        
-        //Redimensionar el buffer si el tamaño cambió
-        size_t requiredSize = renderW * renderH * 3;
-        if (pixelBuffer.size() != requiredSize) {
-            pixelBuffer.resize(requiredSize);
+        // Evitar división por cero al minimizar
+        if (width == 0 || height == 0){
+            glfwWaitEvents();
+            continue;
         }
 
-        //1. CALCULAR FÍSICA (CPU) con dimensiones actuales
-        RayTraceCPU(pixelBuffer, renderW, renderH, renderAspect);
-
-        //2. SUBIR DATOS A LA GPU con dimensiones actuales
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, renderW, renderH, 0, GL_RGB, GL_FLOAT, pixelBuffer.data());
-
-        //3. DIBUJAR
+        // 2. Limpiar la pantalla
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        //3. Activar Shader
         glUseProgram(shaderProgram);
+
+        // --- EL NUEVO CÓDIGO CLAVE ---
+        //Buscamos la variable "u_resolution" en el shader y le enviamos el tamaño actual
+        int resLocation = glGetUniformLocation(shaderProgram, "u_resolution");
+        glUniform2f(resLocation, (float)width, (float)height);
+
+        // ---------------------------------------
+
+        // 4. Dibujar el cuadrado (El lienzo del shader)
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
