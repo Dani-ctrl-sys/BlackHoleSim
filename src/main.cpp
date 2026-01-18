@@ -192,20 +192,6 @@ int main() {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    //---CREACIÓN DE TEXTURA---
-    unsigned int texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    //Configuración de la textura (repetir, filtro)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); //Linear para suavizar en baja resolución
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    
-    //Buffer de la CPU donde pintaremos (Ancho * Alto * 3 canales RGB)
-    std::vector<float> pixelBuffer(WINDOW_WIDTH * WINDOW_HEIGHT * 3);
-
     glUseProgram(shaderProgram);
 
     const float RENDER_SCALE = 0.25f;
