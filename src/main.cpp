@@ -42,15 +42,40 @@ vec3 normalize(const vec3& v){
 const float RS = 0.5f; // Radio de Schwarzschild (Horizonte de eventos)
 const float ISCO = 3.0f * RS; // Órbita Circular Estable Más Interna (para el disco)
 
+// --- VARIABLES GLOBALES DE LA CÁMARA ---
+// Empezamos alejados en Z (frente al agujero)
+float camX = 0.0f;
+float camY = 0.0f;
+float camZ = 5.0f; // 5 unidades de distancia
+
+// --- VARIABLES DE TIEMPO ---
+float deltaTime = 0.0f; // Tiempo entre frames
+float lastFrame = 0.0f; // Tiempo del frame anterior
+
 // Callback para redimensionar la ventana
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
 // Procesar entrada del usuario
-void processInput(GLFWwindow *window) {
+void processInput(GLFWwindow *window, float dt) {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
+
+        // VELOCIDAD REAL: 2.5 unidades por segundo
+        // Si el PC es lento (dt grande), se mueve más distancia por paso.
+        // Si el PC es rápido (dt pequeño), se mueve menos distancia por paso.
+        // Resultado: SIEMPRE recorres 2.5 metros en 1 segundo real.
+        float speed = 2.5f * dt;
+
+        // Movimiento básico (sin delta time por ahora)
+        if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camZ -= speed; // Acercarse
+        if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camZ += speed; // Alejarse
+        if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camX -= speed; // Izquierda
+        if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camX += speed; // Derecha
+        if(glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camY += speed; // Subir
+        if(glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camY -= speed; // Bajar
+            
 }
 
 // Función auxiliar para leer y compilar shaders
@@ -133,6 +158,7 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     return ID;
 }
 
+
 int main() {
     // Inicializar GLFW
     if (!glfwInit()) {
@@ -198,7 +224,14 @@ int main() {
 
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
-        processInput(window);
+
+        // --- 1. CÁLCULO DEL TIEMPO ---
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        
+        // --- 2. PROCESAR LA ENTRADA (Le pasamos el tiempo calculado) ---
+        processInput(window, deltaTime);
 
         // 1. Obtener tamaño real
         int width, height;
@@ -217,11 +250,16 @@ int main() {
         //3. Activar Shader
         glUseProgram(shaderProgram);
 
-        // --- EL NUEVO CÓDIGO CLAVE ---
-        //Buscamos la variable "u_resolution" en el shader y le enviamos el tamaño actual
+        // 1. Resolución (Esto ya lo tenías, mantenlo así)
+        // Le dice al shader cuánto mide la ventana para no deformar el agujero negro.
         int resLocation = glGetUniformLocation(shaderProgram, "u_resolution");
         glUniform2f(resLocation, (float)width, (float)height);
 
+        // 2. Posición de Cámara
+        // Le dice al shader dónde estamos parados en el universo (X, Y, Z).
+        int camLocation = glGetUniformLocation(shaderProgram, "u_camPos");
+        glUniform3f(camLocation, camX, camY, camZ);
+        
         // ---------------------------------------
 
         // 4. Dibujar el cuadrado (El lienzo del shader)
