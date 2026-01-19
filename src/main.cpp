@@ -260,7 +260,11 @@ int main() {
         int camLocation = glGetUniformLocation(shaderProgram, "u_camPos");
         glUniform3f(camLocation, camX, camY, camZ);
         
-        // ---------------------------------------
+        // 3. Propiedades del Agujero Negro
+        // Enviamos el Radio de Schwarzschild (RS) al shader
+        int rsLocation = glGetUniformLocation(shaderProgram, "u_rs");
+        glUniform1f(rsLocation, RS);
+
 
         // 4. Dibujar el cuadrado (El lienzo del shader)
         glBindVertexArray(VAO);

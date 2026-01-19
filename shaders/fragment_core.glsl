@@ -2,17 +2,11 @@
 out vec4 FragColor;
 in vec2 fragCoord; //Coordenadas provenientes del Vertex Shader (-1.0 a 1.0)
 
-// AQUÍ está la variable que mencionamos.
 // "uniform" significa que es constante para todos los píxeles en un mismo cuadro,
 // pero la CPU puede cambiarla si redimensionas la ventana.
 uniform vec2 u_resolution;
 uniform vec3 u_camPos; // Recibe la posición de la cámara desde C++
-
-// --- FÍSICA BÁSICA (Aún sin agujero negro, solo visualización) ---
-// Función temporal para dibujar una esfera y probar la cámara
-float sdSphere(vec3 p, float s){
-    return length(p) - s;
-}
+uniform float u_rs; // Radio de Schwarzschild (Horizonte de eventos)
 
 // Matriz de Cámara (LookAt): Orienta los rayos hacia un objetivo
 mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
@@ -25,39 +19,56 @@ mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
 
 void main()
 {
+    // 1. Configuración de coordenadas
     vec2 uv = fragCoord;
-
-    // Corrección de aspecto
     float aspect = u_resolution.x / u_resolution.y;
     uv.x *= aspect;
 
-    // --- CONFIGURACIÓN DE CÁMARA 3D ---
-    vec3 ro = u_camPos; // Ray Origin (Posición de la cámara)
-    vec3 ta = vec3(0.0, 0.0, 0.0); // Target (Hacia dónde mira)
-    
-    // Construimos la matriz de rotación de la cámara
+    // 2. Cámara y Rayo inicial
+    vec3 ro = u_camPos; // Posición inicial del fotón
+    vec3 ta = vec3(0.0, 0.0, 0.0); // Miramos al agujero negro
     mat3 cam = setCamera(ro, ta, 0.0);
+    vec3 rd = cam * normalize(vec3(uv, 2.0)); // Dirección inicial del fotón 
 
-    // Ray Direction:
-    // uv.x * Right + uv.y * Up + 2.0 * Forward (2.0 es el Zoom/Campo de visión)
-    vec3 rd = cam * normalize(vec3(uv, 2.0));
+    // --- FÍSICA RELATIVISTA (INTEGRACIÓN) ---
+    vec3 p = ro; // Punto actual del rayo
+    vec3 color = vec3(0.0); // Color del fondo (espacio vacío)
 
-    // --- VISUALIZACIÓN TEMPORAL (Ray Marching Simple) ---
-    vec3 color = vec3(0.0); //Fondo negro
+    //Parámetros de la simulación
+    float totalDistance = 0.0; 
+    float stepSize = 0.1; // "Tamaño del paso". Cuanto más pequeño, más preciso (pero más lento).
+    int maxSteps = 300; // Límite de seguridad para no colgar la GPU
+    bool hitBlackHole = false;
 
-    //Lanzamos el rayo
-    float t= 0.0;
-    for(int i=0; i<100; i++){
-        vec3 p = ro + rd * t; //Punto actual en el espacio
-        float d = sdSphere(p, 1.0); // ¿Golpeamos una esfera de radio 1?
-        if(d<0.001){
-            // Si golpeamos, pintamos la esfera
-            vec3 normal = normalize(p);
-            color = normal * 0.5 + 0.5; // Colorear según la normal (X,Y,Z -> R,G,B)
+    for(int i = 0; i < maxSteps; i++){
+        // A. Avanzar el rayo (Por ahora en línea recta: Newtoniano)
+        // En el próximo paso, aquí añadiremos la GRAVEDAD modificando 'rd'
+        p += rd * stepSize;
+
+        // B. Comprobar colisión con el Horizonte de Sucesos
+        float distToCenter = length(p);
+
+        // Si la distancia es menor que el Radio de Schwarzschild...
+        if(distToCenter < u_rs){
+            hitBlackHole = true;
+            break; // ¡Atrapado! Deja de calcular.
+        }
+
+        // C. Salida de emergencia (Optimizacion)
+        // Si el rayo se aleja mucho (  ej: 20 unidades), asumimos que se perdió en el espacio
+        if(distToCenter > 20.0f){
             break;
         }
-        t += d; // Avanzamos en el rayo
-        if(t > 20.0) break; // Muy lejos
     }
+
+    // --- VISUALIZACIÓN ---
+    if(hitBlackHole){
+        color = vec3(0.0); // NEGRO ABSOLUTO (La Sombra)
+    } else {
+        // Fondo de estrellas simple (ruido estático por ahora para ver algo)
+        // O simplemente un color grisáceo para diferenciar del negro
+        color = vec3(0.2, 0.2, 0.25);
+    }
+
     FragColor = vec4(color, 1.0);
 }
