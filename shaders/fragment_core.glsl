@@ -43,7 +43,7 @@ void main()
     vec3 rd = cam * normalize(vec3(uv, 2.0));
 
     // --- VISUALIZACIÓN TEMPORAL (Ray Marching Simple) ---
-    vec3 color = vec3(0.0) //Fondo negro
+    vec3 color = vec3(0.0); //Fondo negro
 
     //Lanzamos el rayo
     float t= 0.0;
