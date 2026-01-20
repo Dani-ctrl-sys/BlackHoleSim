@@ -189,7 +189,7 @@ int main() {
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
-    unsigned int shaderProgram = createShaderProgram("../shaders/vertex_core.glsl", "../shaders/fragment_core.glsl");
+    unsigned int shaderProgram = createShaderProgram("shaders/vertex_core.glsl", "shaders/fragment_core.glsl");
 
     //DEFINE EL LIENZO (Pantalla completa cuádruple)
     //Dos triángulos que cubren toda la pantalla de -1 a 1

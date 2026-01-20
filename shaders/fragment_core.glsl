@@ -147,7 +147,7 @@ void main()
         }
       }
     }
-   }
+   
 
    if(hitBlackHole){
     // Si hitBlackHole por disco, color ya está asignado
