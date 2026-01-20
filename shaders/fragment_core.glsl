@@ -65,6 +65,14 @@ void main()
    // Acumulador de curvatura (para efectos visuales opcionales)
    float accum = 0.0;
 
+   // Límites del disco (dónde empieza y dónde acaba la materia)
+   float isco = 3.0 * u_rs; // Borde interno (Última órbita estable)
+   float outerDisk = 6.0 * u_rs; // Borde externo (hasta donde llega el gas)
+
+   vec3 p_prev = p; // Guardamos posición anterior (declarada FUERA del bucle)
+   vec3 color = vec3(0.0); // Color final del píxel
+   bool hitDisk = false; // ¿Impactó con el disco?
+
    for(int i = 0; i < maxSteps; i++){
 
     // 1. Datos actuales
@@ -82,13 +90,30 @@ void main()
         break; 
     }
 
+    // --- 5. DETECCIÓN DEL DISCO DE ACRECIÓN (dentro del bucle) ---
+    // Lógica: Si antes 'y' era positivo y ahora es negativo (o viceversa), cruzamos el plano Y=0.
+    if(p_prev.y * p.y < 0.0){
+      float distAlCentro = length(p);
+
+      // ¿Estamos entre el radio interno y el externo?
+      if(distAlCentro > isco && distAlCentro < outerDisk){
+        // ¡IMPACTO CON EL DISCO!
+        color = vec3(1.0, 0.5, 0.1); // Naranja fuego
+        color *= (outerDisk / distAlCentro); // Más brillante cerca del centro
+        hitDisk = true;
+        break;
+      }
+    }
+
+    p_prev = p; // Actualizar posición anterior ANTES de mover
+
     // --- EL CORAZÓN DE LA RELATIVIDAD ---
     // Ecuación de Geodésicas para la luz en métrica de Schwarzschild.
     // Aceleración = -1.5 * Rs * h^2 / r^5 * vector_posicion
     // Donde h = momento angular (p cruz v)
 
     vec3 h = cross(p, v); // Momento angular
-    vec3 h2 = dot(h, h); // Momento angular al cuadrado
+    float h2 = dot(h, h); // Momento angular al cuadrado
 
     // Fórmulas simplificadas para GLSL:
     // La gravedad Newtoniana sería proporcional a 1/r^2.
@@ -101,9 +126,9 @@ void main()
     p += v * stepSize; // Movemos el fotón
    }
 
-   vec3 color = vec3(0.0);
-
-   if(hitBlackHole){
+   if(hitDisk){
+    // color ya está asignado en el bucle
+   } else if(hitBlackHole){
     color = vec3(0.0); // La sombra absoluta
    } else{
     // Si el rayo escapó, ¿a dónde fue a parar?
