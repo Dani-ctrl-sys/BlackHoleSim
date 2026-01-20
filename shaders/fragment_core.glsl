@@ -123,18 +123,28 @@ void main()
     v += (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v) * stepSize / 6.0;
     p += (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p) * stepSize / 6.0;
 
-    // --- DETECCIÓN DEL DISCO DE ACRECIÓN ---
-    // Lógica: Si antes 'y' era positivo y ahora es negativo (o viceversa), cruzamos el plano Y=0.
+    // --- DETECCIÓN DEL DISCO DE ACRECIÓN  CON INTERPOLACIÓN---
+    // Comprobamos si cruzamos el plano Y=0
     if(p_prev.y * p.y < 0.0){
-      float distAlCentro = length(p);
 
-      // ¿Estamos entre el radio interno y el externo?
-      if(distAlCentro > isco && distAlCentro < outerDisk){
-        // ¡IMPACTO CON EL DISCO!
-        color = vec3(1.0, 0.5, 0.1); // Naranja fuego
-        color *= (outerDisk / distAlCentro); // Más brillante cerca del centro
-        hitBlackHole = true; // Reusamos para no pintar el fondo
-        break;
+        // MAGIA MATEMÁTICA: Interpolación Lineal (Lerp)
+        // Calculamos 't': el porcentaje del salto que dimos antes de chocar.
+        // Si t=0.5, chocamos justo a la mitad del camino.
+        float t = -p_prev.y / (p.y - p_prev.y);
+
+        // Calculamos el punto EXACTO de intersección
+        vec3 p_exacto = p_prev + t * (p - p_prev);
+
+        // Usamos 'p_exacto' para medir la distancia, no 'p'
+        float dist = length(p_exacto);
+
+        if(dist > isco && dist < outerDisk){
+            float intensity = (outerDisk / dist);
+            // Potenciamos un poco el color
+            color = vec3(1.0, 0.6, 0.2) * intensity * 1.5;
+            hitBlackHole = true;
+            break;
+        }
       }
     }
    }
