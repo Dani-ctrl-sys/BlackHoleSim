@@ -8,6 +8,30 @@ uniform vec2 u_resolution;
 uniform vec3 u_camPos; // Recibe la posición de la cámara desde C++
 uniform float u_rs; // Radio de Schwarzschild (Horizonte de eventos)
 
+// --- HERRAMIENTAS VISUALES ---
+
+//Función para generar un fondo de cuadrícula (Grid) y estrellas
+// Esto nos permite ver la distorsión del espacio-tiempo.
+vec3 getBackground(vec3 dir) {
+    // Convertimos la dirección 3D a coordenadas esféricas planas
+    float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159);
+    float v = 0.5 - asin(dir.y) / 3.14159;
+
+    //Generamos una cuadrícula
+    // "step" crea líneas nítidas blanco/negro
+    float gridColor = 0.0;
+    float density = 10.0; // Cuántas celdas tiene la cuadrícula
+
+    // Líneas verticales y horizontales
+    float gridX = step(0.98, fract(u * density));
+    float gridY = step(0.98, fract(v * density));
+    gridColor = max(gridX, gridY);
+
+    // Color base azul oscuro + líneas blancas cian
+    return vec3(0.05, 0.05, 0.1) + vec3(0.0, 1.0, 1.0) * gridColor; 
+
+}
+
 // Matriz de Cámara (LookAt): Orienta los rayos hacia un objetivo
 mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
     vec3 cw = normalize(ta - ro); // Vector "Forward" (Hacia dónde miro)
@@ -19,56 +43,73 @@ mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
 
 void main()
 {
-    // 1. Configuración de coordenadas
     vec2 uv = fragCoord;
     float aspect = u_resolution.x / u_resolution.y;
     uv.x *= aspect;
 
-    // 2. Cámara y Rayo inicial
+    // Configuración inicial del Rayo
     vec3 ro = u_camPos; // Posición inicial del fotón
     vec3 ta = vec3(0.0, 0.0, 0.0); // Miramos al agujero negro
     mat3 cam = setCamera(ro, ta, 0.0);
     vec3 rd = cam * normalize(vec3(uv, 2.0)); // Dirección inicial del fotón 
 
     // --- FÍSICA RELATIVISTA (INTEGRACIÓN) ---
+
     vec3 p = ro; // Punto actual del rayo
-    vec3 color = vec3(0.0); // Color del fondo (espacio vacío)
+    vec3 v = rd; // Ahora 'v' (velocidad) es modificable, 'rd' era la dirección inicial
 
-    //Parámetros de la simulación
-    float totalDistance = 0.0; 
-    float stepSize = 0.1; // "Tamaño del paso". Cuanto más pequeño, más preciso (pero más lento).
-    int maxSteps = 300; // Límite de seguridad para no colgar la GPU
-    bool hitBlackHole = false;
+   float stepSize = 0.05; // Pasos más pequeños para mayor precisión
+   int maxSteps = 500; // Más pasos porque el camino es curvo
+   bool hitBlackHole = false;
 
-    for(int i = 0; i < maxSteps; i++){
-        // A. Avanzar el rayo (Por ahora en línea recta: Newtoniano)
-        // En el próximo paso, aquí añadiremos la GRAVEDAD modificando 'rd'
-        p += rd * stepSize;
+   // Acumulador de curvatura (para efectos visuales opcionales)
+   float accum = 0.0;
 
-        // B. Comprobar colisión con el Horizonte de Sucesos
-        float distToCenter = length(p);
+   for(int i = 0; i < maxSteps; i++){
 
-        // Si la distancia es menor que el Radio de Schwarzschild...
-        if(distToCenter < u_rs){
-            hitBlackHole = true;
-            break; // ¡Atrapado! Deja de calcular.
-        }
+    // 1. Datos actuales
+    float r2 = dot(p, p); // Distancia al cuadrado (r^2)
+    float r = sqrt(r2); // Distancia al punto (r)
 
-        // C. Salida de emergencia (Optimizacion)
-        // Si el rayo se aleja mucho (  ej: 20 unidades), asumimos que se perdió en el espacio
-        if(distToCenter > 20.0f){
-            break;
-        }
+    // 2. Comprobar colisión (Horizonte de Sucesos)
+    if(r < u_rs){
+        hitBlackHole = true;
+        break;
     }
 
-    // --- VISUALIZACIÓN ---
-    if(hitBlackHole){
-        color = vec3(0.0); // NEGRO ABSOLUTO (La Sombra)
-    } else {
-        // Fondo de estrellas simple (ruido estático por ahora para ver algo)
-        // O simplemente un color grisáceo para diferenciar del negro
-        color = vec3(0.2, 0.2, 0.25);
+    // 3. Salida de emergencia (Si escapamos al infinito)
+    if (r > 20.0){
+        break; 
     }
 
-    FragColor = vec4(color, 1.0);
+    // --- EL CORAZÓN DE LA RELATIVIDAD ---
+    // Ecuación de Geodésicas para la luz en métrica de Schwarzschild.
+    // Aceleración = -1.5 * Rs * h^2 / r^5 * vector_posicion
+    // Donde h = momento angular (p cruz v)
+
+    vec3 h = cross(p, v); // Momento angular
+    vec3 h2 = dot(h, h); // Momento angular al cuadrado
+
+    // Fórmulas simplificadas para GLSL:
+    // La gravedad Newtoniana sería proporcional a 1/r^2.
+    // La gravedad Einsteiniana para luz es proporcional a 1/r^5.
+    // Esto causa que la luz "caiga" muy rápido cerca del horizonte.
+    vec3 accel = -1.5 * h2 * u_rs / pow(r2, 2.5) * p;
+
+    // 4. Integración de Euler (Simple)
+    v += accel * stepSize; // Cambiamos la DIRECCIÓN del fotón
+    p += v * stepSize; // Movemos el fotón
+   }
+
+   vec3 color = vec3(0.0);
+
+   if(hitBlackHole){
+    color = vec3(0.0); // La sombra absoluta
+   } else{
+    // Si el rayo escapó, ¿a dónde fue a parar?
+    // Usamos la dirección FINAL del vector 'v' para buscar en el mapa
+    color = getBackground(normalize(v));
+   }
+
+   FragColor = vec4(color, 1.0);
 }
