@@ -41,6 +41,24 @@ mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
     return mat3(cu, cv, cw);
 }
 
+// --- FÍSICA: CÁLCULO DE ACELERACIÓN ---
+// Calcula cuánto se curva la luz en una posición 'p' dada
+vec3 calculateAccel(vec3 p, vec3 v, float u_rs){
+    float r2 = dot(p, p); // Distancia al cuadrado (r^2)
+    float r = sqrt(r2); // Distancia al punto (r)
+
+    // Momento angular específico (h = p x v)
+    // Se conserva en la órbita, pero necesitamos su magnitud para la fuerza
+
+    vec3 h = cross(p, v);
+    float h2 = dot(h, h);
+
+    // Ecuación de geodésica para fotones en Schwarzschild
+    // Aceleración = -1.5 * h^2 * Rs / r^5 * vector_posicion
+    return -1.5 * h2 * u_rs / (r2 * r) * p;
+    
+}
+
 void main()
 {
     vec2 uv = fragCoord;
@@ -51,64 +69,61 @@ void main()
     vec3 ro = u_camPos; // Posición inicial del fotón
     vec3 ta = vec3(0.0, 0.0, 0.0); // Miramos al agujero negro
     mat3 cam = setCamera(ro, ta, 0.0);
-    vec3 rd = cam * normalize(vec3(uv, 2.0)); // Dirección inicial del fotón 
-
-    // --- FÍSICA RELATIVISTA (INTEGRACIÓN) ---
+    vec3 rd = cam * normalize(vec3(uv, 2.0)); // Dirección inicial del fotón
 
     vec3 p = ro; // Punto actual del rayo
     vec3 v = rd; // Ahora 'v' (velocidad) es modificable, 'rd' era la dirección inicial
 
-   float stepSize = 0.05; // Pasos más pequeños para mayor precisión
-   int maxSteps = 500; // Más pasos porque el camino es curvo
-   bool hitBlackHole = false;
+    // Ajustes para RK4: Pasos más grandes pero precisos
+    float stepSize = 0.1;
+    int maxSteps = 1000; // Un poco más de margen
 
-   // Acumulador de curvatura (para efectos visuales opcionales)
-   float accum = 0.0;
+    bool hitBlackHole = false;
+    float isco = 3.0 * u_rs; // Borde interno (Última órbita estable)
+    float outerDisk = 6.0 * u_rs; // Borde externo (hasta donde llega el gas)
 
-   // Límites del disco (dónde empieza y dónde acaba la materia)
-   float isco = 3.0 * u_rs; // Borde interno (Última órbita estable)
-   float outerDisk = 6.0 * u_rs; // Borde externo (hasta donde llega el gas)
+    vec3 color = vec3(0.0); // Declaramos color ANTES del bucle
 
-   vec3 color = vec3(0.0); // Declaramos color ANTES del bucle
-
-   for(int i = 0; i < maxSteps; i++){
+    for(int i = 0; i < maxSteps; i++){
 
     vec3 p_prev = p; // Guardamos la posición anterior
-
-    // 1. Datos actuales
     float r2 = dot(p, p); // Distancia al cuadrado (r^2)
     float r = sqrt(r2); // Distancia al punto (r)
 
-    // 2. Comprobar colisión (Horizonte de Sucesos)
+    // CONDICIONES DE PARADA
     if(r < u_rs){
         hitBlackHole = true;
         break;
     }
-
-    // 3. Salida de emergencia (Si escapamos al infinito)
-    if (r > 20.0){
+    if (r > 25.0){
         break; 
     }
 
-    // --- EL CORAZÓN DE LA RELATIVIDAD ---
-    // Ecuación de Geodésicas para la luz en métrica de Schwarzschild.
-    // Aceleración = -1.5 * Rs * h^2 / r^5 * vector_posicion
-    // Donde h = momento angular (p cruz v)
+    // --- INTEGRADOR RK4 (Runge-Kutta 4th Order) ---
+    // k1, k2, k3, k4 son las 4 "pendientes" o evaluaciones
 
-    vec3 h = cross(p, v); // Momento angular
-    float h2 = dot(h, h); // Momento angular al cuadrado
+    // Paso 1: Evaluar en el punto actual
+    vec3 k1_v = calculateAccel(p, v, u_rs);
+    vec3 k1_p = v;
 
-    // Fórmulas simplificadas para GLSL:
-    // La gravedad Newtoniana sería proporcional a 1/r^2.
-    // La gravedad Einsteiniana para luz es proporcional a 1/r^5.
-    // Esto causa que la luz "caiga" muy rápido cerca del horizonte.
-    vec3 accel = -1.5 * h2 * u_rs / pow(r2, 2.5) * p;
+    // Paso 2: Evaluar a mitad del paso (usando k1)
+    vec3 k2_v = calculateAccel(p + k1_p * stepSize * 0.5, v + k1_v * stepSize * 0.5, u_rs);
+    vec3 k2_p = v + k1_v * stepSize * 0.5;
 
-    // 4. Integración de Euler (Simple)
-    v += accel * stepSize; // Cambiamos la DIRECCIÓN del fotón
-    p += v * stepSize; // Movemos el fotón
+    // Paso 3: Evaluar a mitad del paso (usando k2)
+    vec3 k3_v = calculateAccel(p + k2_p * stepSize * 0.5, v + k2_v * stepSize * 0.5, u_rs);
+    vec3 k3_p = v + k2_v * stepSize * 0.5;
 
-    // --- 5. DETECCIÓN DEL DISCO DE ACRECIÓN ---
+    // 4. Evaluar al final del paso (usando k3)
+    vec3 k4_v = calculateAccel(p + k3_p * stepSize, v + k3_v * stepSize, u_rs);
+    vec3 k4_p = v + k3_v * stepSize;
+
+    // Promedio ponderado (1/6) para actualizar Posición y Velocidad
+    // Fórmula: x_nuevo = x_viejo + (k1 + 2k2 + 2k3 + k4) * dt / 6
+    v += (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v) * stepSize / 6.0;
+    p += (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p) * stepSize / 6.0;
+
+    // --- DETECCIÓN DEL DISCO DE ACRECIÓN ---
     // Lógica: Si antes 'y' era positivo y ahora es negativo (o viceversa), cruzamos el plano Y=0.
     if(p_prev.y * p.y < 0.0){
       float distAlCentro = length(p);
