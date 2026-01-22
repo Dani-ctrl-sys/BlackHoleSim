@@ -158,6 +158,80 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     return ID;
 }
 
+// Crea una textura de alta precisión (32-bit Float) para escritura arbitraria
+unsigned int createComputeTexture(int width, int height){
+    unsigned int texID;
+    glGenTextures(1, &texID);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texID);
+
+    // GL_RGBA32F: Aquí está la clave. 32 bits flotantes por canal (R,G,B,A).
+    // Pasamos NULL al final porque no estamos copiando una imagen desde la CPU,
+    // solo reservamos la memoria en la GPU.
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    // Filtros básicos
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    // --- MAGIA DE COMPUTE SHADER ---
+    // glBindImageTexture conecta la textura a una "Image Unit" (unidad de imagen).
+    // Esto permite que el shader escriba en ella usando imageStore().
+    // 0 = Binding Unit (debe coincidir con el shader: layout(rgba32f, binding = 0))
+    // GL_WRITE_ONLY = El shader solo escribirá en ella (optimización).
+    glBindImageTexture(0, texID, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    return texID;
+}
+
+unsigned int createComputeShaderProgram(const char* computePath){
+    // 1. Leer el archivo
+    std::string computeCode;
+    std::ifstream cShaderFile;
+    cShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    try{
+        cShaderFile.open(computePath);
+        std::stringstream cShaderStream;
+        cShaderStream << cShaderFile.rdbuf();
+        cShaderFile.close();
+        computeCode = cShaderStream.str();
+    }
+    catch(std::ifstream::failure& e){
+        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+        return 0;
+    }
+    const char* cShaderCode = computeCode.c_str();
+
+    // 2. Compilar (GL_COMPUTE_SHADER)
+    unsigned int computeShader = glCreateShader(GL_COMPUTE_SHADER);
+    glShaderSource(computeShader, 1, &cShaderCode, NULL);
+    glCompileShader(computeShader);
+
+    // Comprobar errores
+    int success;
+    char infoLog[512];
+    glGetShaderiv(computeShader, GL_COMPILE_STATUS, &success);
+    if(!success){
+        glGetShaderInfoLog(computeShader, 512, NULL, infoLog);
+        std::cout << "ERROR::SHADER::COMPUTE::COMPILATION_FAILED\n" << infoLog << std::endl;
+    }
+
+    // 3. Crear programa
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, computeShader);
+    glLinkProgram(shaderProgram);
+
+    // Comprobar errores de linkado
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if(!success){
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cout << "ERROR::SHADER::COMPUTE::LINKING_FAILED\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(computeShader);
+
+    return shaderProgram;
+}
 
 int main() {
     // Inicializar GLFW
