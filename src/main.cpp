@@ -265,6 +265,11 @@ int main() {
 
     // Shader de pantalla "simple" que solo muestra la textura del compute shader
     unsigned int screenProgram = createShaderProgram("../shaders/vertex_core.glsl", "../shaders/fragment_screen.glsl");
+    if (screenProgram == 0) {
+        std::cerr << "ERROR: No se pudo cargar screenProgram" << std::endl;
+        return -1;
+    }
+    std::cout << "✓ Screen shaders cargados correctamente" << std::endl;
 
     //DEFINE EL LIENZO (Pantalla completa cuádruple)
     //Dos triángulos que cubren toda la pantalla de -1 a 1
@@ -297,6 +302,11 @@ int main() {
 
     // 1. Cargar el Compute Shader (El "Cerebro" matemático)
     unsigned int computeProgram = createComputeShaderProgram("../shaders/raytracing.glsl");
+    if (computeProgram == 0) {
+        std::cerr << "ERROR: No se pudo cargar computeProgram" << std::endl;
+        return -1;
+    }
+    std::cout << "✓ Compute shader cargado correctamente" << std::endl;
 
     // 2. Crear la Textura de Cómputo (El "Papel" donde escribirá)
     unsigned int computeTexture = createComputeTexture(WINDOW_WIDTH, WINDOW_HEIGHT);
