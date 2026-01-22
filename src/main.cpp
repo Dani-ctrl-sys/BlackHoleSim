@@ -263,7 +263,8 @@ int main() {
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
-    unsigned int shaderProgram = createShaderProgram("shaders/vertex_core.glsl", "shaders/fragment_core.glsl");
+    // Shader de pantalla "simple" que solo muestra la textura del compute shader
+    unsigned int screenProgram = createShaderProgram("../shaders/vertex_core.glsl", "../shaders/fragment_screen.glsl");
 
     //DEFINE EL LIENZO (Pantalla completa cuádruple)
     //Dos triángulos que cubren toda la pantalla de -1 a 1
@@ -292,9 +293,16 @@ int main() {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    glUseProgram(shaderProgram);
-
     const float RENDER_SCALE = 0.25f;
+
+    // 1. Cargar el Compute Shader (El "Cerebro" matemático)
+    unsigned int computeProgram = createComputeShaderProgram("../shaders/raytracing.glsl");
+
+    // 2. Crear la Textura de Cómputo (El "Papel" donde escribirá)
+    unsigned int computeTexture = createComputeTexture(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    // 3. Activar el shader una vez para configurar uniformes estáticos (si los hubiera)
+    glUseProgram(computeProgram);
 
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
@@ -303,6 +311,22 @@ int main() {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        // --- FASE DE CÓMPUTO ---
+        glUseProgram(computeProgram);
+
+        // Enviamos el tiempo para animaciones futuras
+        glUniform1f(glGetUniformLocation(computeProgram, "u_time"), (float)glfwGetTime());
+        
+        // ¡LANZAMIENTO!
+        // X = 100, Y = 75, Z = 1
+        glDispatchCompute(100, 75, 1);
+
+        // --- BARRERA DE MEMORIA (CRÍTICO) ---
+        // Esto le dice a la GPU: "No empieces a dibujar píxeles (Fragment Shader)
+        // hasta que el Compute Shader haya terminado de escribir en la textura".
+        // Sin esto, verías parpadeos o basura porque leerías la textura mientras se escribe.
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         
         // --- 2. PROCESAR LA ENTRADA (Le pasamos el tiempo calculado) ---
         processInput(window, deltaTime);
@@ -317,30 +341,21 @@ int main() {
             continue;
         }
 
-        // 2. Limpiar la pantalla
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // --- 3. DIBUJAR EN PANTALLA (Render Pass) ---
+        // Limpiamos la pantalla normal
         glClear(GL_COLOR_BUFFER_BIT);
 
-        //3. Activar Shader
-        glUseProgram(shaderProgram);
+        // Activamos el shader "tonto"
+        glUseProgram(screenProgram);
 
-        // 1. Resolución (Esto ya lo tenías, mantenlo así)
-        // Le dice al shader cuánto mide la ventana para no deformar el agujero negro.
-        int resLocation = glGetUniformLocation(shaderProgram, "u_resolution");
-        glUniform2f(resLocation, (float)width, (float)height);
-
-        // 2. Posición de Cámara
-        // Le dice al shader dónde estamos parados en el universo (X, Y, Z).
-        int camLocation = glGetUniformLocation(shaderProgram, "u_camPos");
-        glUniform3f(camLocation, camX, camY, camZ);
+        // Conectamos la textura que rellenó el Compute Shader
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, computeTexture);
         
-        // 3. Propiedades del Agujero Negro
-        // Enviamos el Radio de Schwarzschild (RS) al shader
-        int rsLocation = glGetUniformLocation(shaderProgram, "u_rs");
-        glUniform1f(rsLocation, RS);
+        // Le decimos al sampler (texOutput) que lea de la ranura 0
+        glUniform1i(glGetUniformLocation(screenProgram, "texOutput"), 0);
 
-
-        // 4. Dibujar el cuadrado (El lienzo del shader)
+        // Dibujamos el cuadrado de siempre
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
