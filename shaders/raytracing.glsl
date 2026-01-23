@@ -144,7 +144,7 @@ void main() {
 
     // Renderizar fondo si no golpeó nada
     if(!hit){
-        col = getBackground(rd);
+        col = getBackground(vel);
     }
 
     imageStore(imgOutput, pixel_coords, vec4(col, 1.0));

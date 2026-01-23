@@ -370,7 +370,7 @@ int main() {
 
         // ¡LANZAMIENTO!
         // X = 100, Y = 75, Z = 1
-        glDispatchCompute(100, 75, 1);
+        glDispatchCompute((currentWidth + 7) / 8, (currentHeight + 7) / 8, 1);
 
         // --- BARRERA DE MEMORIA (CRÍTICO) ---
         // Esto le dice a la GPU: "No empieces a dibujar píxeles (Fragment Shader)
@@ -390,7 +390,7 @@ int main() {
         glBindImageTexture(1, blurTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
         // C. ¡Lanzamiento! (Mismos grupos que antes porque la resolución es la misma)
-        glDispatchCompute(100, 75, 1);
+        glDispatchCompute((currentWidth + 7) / 8, (currentHeight + 7) / 8, 1);
 
         // D. Barrera de Memoria
         // Esperamos a que el desenfoque termine antes de dibujar en pantalla
