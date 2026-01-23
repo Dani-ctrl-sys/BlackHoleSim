@@ -14,6 +14,11 @@ layout(rgba32f, binding = 0) uniform image2D imgOutput;
 uniform float u_time;
 uniform vec3 u_camPos; // Posición de la cámara (desde C++)
 
+const float RS = 0.5;
+const float ISCO = 3.0 * RS;
+const int MAX_STEPS = 200;
+const float STEP_SIZE = 0.05;;
+
 // Genera un fondo con rejilla espacial basado en la dirección del rayo
 vec3 getBackground(vec3 dir) {
     float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159);
@@ -36,6 +41,14 @@ mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
     vec3 cu = normalize(cross(cw, cp));
     vec3 cv = normalize(cross(cu, cw));
     return mat3(cu, cv, cw);
+}
+
+vec3 calculateAccel(vec3 pos){
+    float r2 = dot(pos,pos);
+    float r = sqrt(r2);
+
+    float acc = -1.5 * RS * pos / (r2 * r2 * r);
+    return acc;
 }
 
 void main() {
@@ -69,8 +82,40 @@ void main() {
     // Generar rayo desde la cámara
     vec3 rd = cam * normalize(vec3(uv, 2.0));  // Ray Direction
 
-    // Renderizar fondo con rejilla
-    vec3 color = getBackground(rd);
+    vec3 pos = ro;
+    vec3 vel = rd;
+    vec3 col = vec3(0.0);
+    bool hit = false;
 
-    imageStore(imgOutput, pixel_coords, vec4(color, 1.0));
+    for(int i = 0; i < MAX_STEPS; i++){
+        float r = length(pos);
+
+        if(r < RS){
+            col = vec3 (0.0);
+            hit = true;
+            break;
+        }
+
+        if(abs(pos.y) < 0.1 && r > ISCO && r < 4.0 * RS){
+            float angle = atan(pos.z, pos.x);
+            float r_pattern = floor(r * 10.0);
+            float a_pattern = floor(angle * 10.0);
+
+            float check = mod(r_pattern + a_pattern, 2.0);
+            col = vec3(1.0, 0.6, 0.1) * (0.5 + 0.5 * check);
+            hit = true;
+            break;
+        }
+
+        vec3 acc = calculateAccel(pos);
+        vel = vel + acc * STEP_SIZE;
+        pos = pos + vel * STEP_SIZE;
+    }
+
+    // Renderizar fondo si no golpeó nada
+    if(!hit){
+        col = getBackground(rd);
+    }
+
+    imageStore(imgOutput, pixel_coords, vec4(col, 1.0));
 }
