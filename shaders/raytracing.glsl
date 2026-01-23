@@ -63,7 +63,7 @@ void main() {
 
     // Configurar cámara
     vec3 ro = u_camPos;  // Ray Origin
-    vec ta = vec3(0.0, 0.0, 0.0);  // Target (mirando al origen)
+    vec3 ta = vec3(0.0, 0.0, 0.0);  // Target (mirando al origen)
     mat3 cam = setCamera(ro, ta, 0.0);
 
     // Generar rayo desde la cámara
