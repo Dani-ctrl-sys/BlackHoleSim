@@ -328,6 +328,9 @@ int main() {
         // Enviamos el tiempo para animaciones futuras
         glUniform1f(glGetUniformLocation(computeProgram, "u_time"), (float)glfwGetTime());
         
+        // Enviar posición de la cámara al shader
+        glUniform3f(glGetUniformLocation(computeProgram, "u_camPos"), camX, camY, camZ);
+
         // ¡LANZAMIENTO!
         // X = 100, Y = 75, Z = 1
         glDispatchCompute(100, 75, 1);

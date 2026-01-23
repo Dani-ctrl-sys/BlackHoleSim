@@ -10,8 +10,33 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 // binding = 0: Coincide con el '0' del glBindImageTexture en C++
 layout(rgba32f, binding = 0) uniform image2D imgOutput;
 
-// 3. UNIFORMS (Igual que antes)
+// 3. UNIFORMS
 uniform float u_time;
+uniform vec3 u_camPos; // Posición de la cámara (desde C++)
+
+// Genera un fondo con rejilla espacial basado en la dirección del rayo
+vec3 getBackground(vec3 dir) {
+    float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159);
+    float v = 0.5 - asin(dir.y) / 3.14159;
+    
+    // Rejilla de fondo
+    float density = 10.0;
+    float gridX = step(0.98, fract(u * density));
+    float gridY = step(0.98, fract(v * density));
+    float gridColor = max(gridX, gridY);
+    
+    // Azul oscuro con l├¡neas cian
+    return vec3(0.05, 0.05, 0.1) + vec3(0.0, 1.0, 1.0) * gridColor;
+}
+
+// Construye matriz de cámara: ro=origen, ta=target, cr=roll
+mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
+    vec3 cw = normalize(ta - ro);
+    vec3 cp = vec3(sin(cr), cos(cr), 0.0);
+    vec3 cu = normalize(cross(cw, cp));
+    vec3 cv = normalize(cross(cu, cw));
+    return mat3(cu, cv, cw);
+}
 
 void main() {
     // A. OBTENER COORDENADAS
@@ -28,15 +53,24 @@ void main() {
     // no es múltiplo de 8), no hacemos nada para no romper la memoria.
     if(pixel_coords.x >= dims.x || pixel_coords.y >= dims.y) return;
 
-    // --- TEST VISUAL ---
-    // Vamos a pintar algo simple para ver si funciona.
-    // Un degradado basado en la posición.
-    float r = float(pixel_coords.x) / dims.x;
-    float g = float(pixel_coords.y) / dims.y;
-    vec4 pixel_color = vec4(r, g, 0.0, 1.0);
+    // Normalizar coordenadas a [0,1] y luego a [-1,1]
+    vec2 uv = vec2(pixel_coords) / vec2(dims);
+    uv = uv * 2.0 -1.0;
 
-    // D. ESCRIBIR EN LA MEMORIA
-    // En lugar de "FragColor =", usamos imageStore.
-    // Parámetros: (Dónde escribir, En qué coordenada, Qué color poner)
-    imageStore(imgOutput, pixel_coords, pixel_color);
+    // Corregir aspect ratio
+    float aspect = float(dims.x) / float(dims.y);
+    uv.x *= aspect;
+
+    // Configurar cámara
+    vec3 ro = u_camPos;  // Ray Origin
+    vec ta = vec3(0.0, 0.0, 0.0);  // Target (mirando al origen)
+    mat3 cam = setCamera(ro, ta, 0.0);
+
+    // Generar rayo desde la cámara
+    vec3 rd = cam * normalize(vec3(uv, 2.0));  // Ray Direction
+
+    // Renderizar fondo con rejilla
+    vec3 color = getBackground(rd);
+
+    imageStore(imgOutput, pixel_coords, vec4(color, 1.0));
 }
