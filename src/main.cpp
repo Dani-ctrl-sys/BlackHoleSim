@@ -324,8 +324,35 @@ int main() {
     // 3. Activar el shader una vez para configurar uniformes estáticos (si los hubiera)
     glUseProgram(computeProgram);
 
+    int currentWidth = WINDOW_WIDTH;
+    int currentHeight = WINDOW_HEIGHT;
+
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
+
+        // 1. Detectar cambio de resolución
+        int newWidth, newHeight;
+        glfwGetFramebufferSize(window, &newWidth, &newHeight);
+
+        // Si la ventana ha cambiado de tamaño (y no está minimizada a 0)
+        if ((newWidth != currentWidth || newHeight != currentHeight) && newWidth > 0 && newHeight > 0) {
+            
+            // Actualizamos las variables
+            currentWidth = newWidth;
+            currentHeight = newHeight;
+            
+            // Ajustamos el puerto de visión de OpenGL
+            glViewport(0, 0, currentWidth, currentHeight);
+
+            // --- REINICIO DE TEXTURAS ---
+            // Borramos las viejas para liberar memoria
+            glDeleteTextures(1, &computeTexture);
+            glDeleteTextures(1, &blurTexture); 
+
+            // Creamos las nuevas con el tamaño gigante
+            computeTexture = createComputeTexture(currentWidth, currentHeight);
+            blurTexture = createComputeTexture(currentWidth, currentHeight);
+        }
 
         // --- 1. CÁLCULO DEL TIEMPO ---
         float currentFrame = glfwGetTime();
