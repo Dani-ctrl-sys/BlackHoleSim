@@ -47,7 +47,7 @@ vec3 calculateAccel(vec3 pos){
     float r2 = dot(pos,pos);
     float r = sqrt(r2);
 
-    float acc = -1.5 * RS * pos / (r2 * r2 * r);
+    vec3 acc = -1.5 * RS * pos / (r2 * r2 * r);
     return acc;
 }
 
