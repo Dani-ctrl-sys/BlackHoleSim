@@ -308,8 +308,18 @@ int main() {
     }
     std::cout << "✓ Compute shader cargado correctamente" << std::endl;
 
+    // Cargar el shader de desenfoque (Bloom)
+    unsigned int blurProgram = createComputeShaderProgram("../shaders/blur.glsl");
+    if (blurProgram == 0) {
+        std::cerr << "ERROR: No se pudo cargar blurProgram" << std::endl;
+        return -1;
+    }
+    std::cout << "✓ Blur shader cargado correctamente" << std::endl;
+
     // 2. Crear la Textura de Cómputo (El "Papel" donde escribirá)
     unsigned int computeTexture = createComputeTexture(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    unsigned int blurTexture = createComputeTexture(WINDOW_WIDTH, WINDOW_HEIGHT);
 
     // 3. Activar el shader una vez para configurar uniformes estáticos (si los hubiera)
     glUseProgram(computeProgram);
@@ -340,6 +350,24 @@ int main() {
         // hasta que el Compute Shader haya terminado de escribir en la textura".
         // Sin esto, verías parpadeos o basura porque leerías la textura mientras se escribe.
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        // --- FASE 2: POST-PROCESADO (BLOOM / BLUR) ---
+        glUseProgram(blurProgram);
+
+        // A. Conectar Entrada (La imagen nítida que acabamos de calcular)
+        // Binding 0 = Lectura (GL_READ_ONLY) -> computeTexture
+        glBindImageTexture(0, computeTexture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
+
+        // B. Conectar Salida (El lienzo vacío para la imagen borrosa)
+        // Binding 1 = Escritura (GL_WRITE_ONLY) -> blurTexture
+        glBindImageTexture(1, blurTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+        // C. ¡Lanzamiento! (Mismos grupos que antes porque la resolución es la misma)
+        glDispatchCompute(100, 75, 1);
+
+        // D. Barrera de Memoria
+        // Esperamos a que el desenfoque termine antes de dibujar en pantalla
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         
         // --- 2. PROCESAR LA ENTRADA (Le pasamos el tiempo calculado) ---
         processInput(window, deltaTime);
@@ -366,7 +394,11 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, computeTexture);
         
         // Le decimos al sampler (texOutput) que lea de la ranura 0
-        glUniform1i(glGetUniformLocation(screenProgram, "texOutput"), 0);
+        glUniform1i(glGetUniformLocation(screenProgram, "texBase"), 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, blurTexture);
+        glUniform1i(glGetUniformLocation(screenProgram, "texBloom"), 1);
 
         // Dibujamos el cuadrado de siempre
         glBindVertexArray(VAO);

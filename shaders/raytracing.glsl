@@ -51,6 +51,38 @@ vec3 calculateAccel(vec3 pos){
     return acc;
 }
 
+// --- INTEGRADOR RUNGE-KUTTA 4 (Alta Precisión) ---
+void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
+    // 1. Primer paso (donde estamos ahora)
+    vec3 k1_v = vel;
+    vec3 k1_a = calculateAccel(pos);
+
+    // 2. Segundo paso (probamos a mitad del camino usando k1)
+    vec3 pos2 = pos + k1_v * (dt * 0.5);
+    vec3 k2_v = vel + k1_a * (dt * 0.5);
+    vec3 k2_a = calculateAccel(pos2);
+
+    // 3. Tercer paso (corregimos la mitad del camino usando k2)
+    vec3 pos3 = pos + k2_v * (dt * 0.5);
+    vec3 k3_v = vel + k2_a * (dt * 0.5);
+    vec3 k3_a = calculateAccel(pos3);
+
+    // 4. Cuarto paso (probamos el final del camino usando k3)
+    vec3 pos4 = pos + k3_v * dt;
+    vec3 k4_v = vel + k3_a * dt;
+    vec3 k4_a = calculateAccel(pos4);
+
+    // --- PROMEDIO PONDERADO ---
+    // La velocidad final es una mezcla de las 4 velocidades de prueba
+    // Pesos: 1/6, 2/6, 2/6, 1/6
+    vec3 final_vel = (k1_v + 2.0*k2_v + 2.0*k3_v + k4_v) / 6.0;
+    vec3 final_acc = (k1_a + 2.0*k2_a + 2.0*k3_a + k4_a) / 6.0;
+
+    // Actualizamos las variables reales
+    pos += final_vel * dt;
+    vel += final_acc * dt;
+}
+
 void main() {
     // A. OBTENER COORDENADAS
     // Convertimos el ID global en coordenadas de imagen (enteros)
@@ -107,9 +139,7 @@ void main() {
             break;
         }
 
-        vec3 acc = calculateAccel(pos);
-        vel = vel + acc * STEP_SIZE;
-        pos = pos + vel * STEP_SIZE;
+        stepRK4(pos, vel, STEP_SIZE);
     }
 
     // Renderizar fondo si no golpeó nada
