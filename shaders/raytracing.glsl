@@ -83,6 +83,20 @@ void stepRK4(inout vec3 pos, inout vec3 vel, float dt) {
     vel += final_acc * dt;
 }
 
+// --- FUNCIÓN DE HASH (Pseudo-random) ---
+// Entra: Coordenada 2D (p)
+// Sale: Un único número aleatorio entre 0.0 y 1.0
+float hash(vec2 p) {
+    // El "dot product" mezcla x e y.
+    // El "sin" crea ondas.
+    // El número grande (43758.5453) rompe la onda en pedacitos (fract).
+    vec3 p3  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+// Nota: He usado una versión ligeramente mejorada del hash clásico de una línea
+// para evitar problemas en algunas GPUs de Intel/AMD, pero el concepto es el mismo.
+
 void main() {
     // A. OBTENER COORDENADAS
     // Convertimos el ID global en coordenadas de imagen (enteros)
