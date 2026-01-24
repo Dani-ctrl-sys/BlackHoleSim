@@ -98,68 +98,18 @@ float hash(vec2 p) {
 // para evitar problemas en algunas GPUs de Intel/AMD, pero el concepto es el mismo.
 
 void main() {
-    // A. OBTENER COORDENADAS
-    // Convertimos el ID global en coordenadas de imagen (enteros)
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
-
-    // B. OBTENER TAMAÑO DE IMAGEN
-    // Ya no necesitamos pasar u_resolution manualmente,
-    // podemos preguntarle a la textura cuánto mide.
     ivec2 dims = imageSize(imgOutput);
-
-    // C. SEGURIDAD
-    // Si el hilo está fuera de la imagen (puede pasar si el tamaño
-    // no es múltiplo de 8), no hacemos nada para no romper la memoria.
     if(pixel_coords.x >= dims.x || pixel_coords.y >= dims.y) return;
 
-    // Normalizar coordenadas a [0,1] y luego a [-1,1]
-    vec2 uv = vec2(pixel_coords) / vec2(dims);
-    uv = uv * 2.0 -1.0;
+    // 1. Convertimos coordenada entera a float (normalizada o no, da igual para el hash)
+    vec2 uv = vec2(pixel_coords);
 
-    // Corregir aspect ratio
-    float aspect = float(dims.x) / float(dims.y);
-    uv.x *= aspect;
+    // 2. Generamos el valor aleatorio usando nuestra "huella dactilar"
+    float noiseValue = hash(uv);
 
-    // Configurar cámara
-    vec3 ro = u_camPos;  // Ray Origin
-    vec3 ta = vec3(0.0, 0.0, 0.0);  // Target (mirando al origen)
-    mat3 cam = setCamera(ro, ta, 0.0);
-
-    // Generar rayo desde la cámara
-    vec3 rd = cam * normalize(vec3(uv, 2.0));  // Ray Direction
-
-    vec3 pos = ro;
-    vec3 vel = rd;
-    vec3 col = vec3(0.0);
-    bool hit = false;
-
-    for(int i = 0; i < MAX_STEPS; i++){
-        float r = length(pos);
-
-        if(r < RS){
-            col = vec3 (0.0);
-            hit = true;
-            break;
-        }
-
-        if(abs(pos.y) < 0.1 && r > ISCO && r < 4.0 * RS){
-            float angle = atan(pos.z, pos.x);
-            float r_pattern = floor(r * 10.0);
-            float a_pattern = floor(angle * 10.0);
-
-            float check = mod(r_pattern + a_pattern, 2.0);
-            col = vec3(1.0, 0.6, 0.1) * (0.5 + 0.5 * check);
-            hit = true;
-            break;
-        }
-
-        stepRK4(pos, vel, STEP_SIZE);
-    }
-
-    // Renderizar fondo si no golpeó nada
-    if(!hit){
-        col = getBackground(vel);
-    }
-
-    imageStore(imgOutput, pixel_coords, vec4(col, 1.0));
+    // 3. Lo pintamos (Blanco y negro)
+    vec4 pixel_color = vec4(vec3(noiseValue), 1.0);
+    
+    imageStore(imgOutput, pixel_coords, pixel_color);
 }
