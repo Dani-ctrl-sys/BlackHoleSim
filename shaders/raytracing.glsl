@@ -99,6 +99,28 @@ float valueNoise(vec2 uv) {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
+// --- FBM (Fractal Brownian Motion) ---
+// Acumula varias capas de ruido para dar detalle.
+// NUM_OCTAVES define cuánto detalle queremos (más = más lento pero más bonito).
+#define NUM_OCTAVES 5
+
+float fbm(vec2 uv) {
+    float v = 0.0;
+    float a = 0.5; // Amplitud inicial (Fuerza de la capa)
+    vec2 shift = vec2(100.0); // Desplazamiento para que las capas no se alineen feo
+    // Matriz de rotación para mezclar capas (evita artefactos visuales)
+    mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
+
+    for (int i = 0; i < NUM_OCTAVES; ++i) {
+        v += a * valueNoise(uv); // Sumamos el ruido con la fuerza actual
+        
+        // PREPARAMOS LA SIGUIENTE CAPA:
+        uv = rot * uv * 2.0 + shift; // 1. Rotamos y escalamos (Doble frecuencia)
+        a *= 0.5;                    // 2. Bajamos la fuerza a la mitad (Mitad amplitud)
+    }
+    return v;
+}
+
 // ==========================================
 //              MAIN (KERNEL)
 // ==========================================
@@ -145,12 +167,23 @@ void main() {
     // =========================================================
     //    PRUEBA DE VISUALIZACIÓN DE RUIDO (SOBRESCRIBE TODO)
     // =========================================================
-    // Multiplicamos por 10.0 para ver una cuadrícula de 10x10 "manchas"
-    float n = valueNoise(uv_noise * 10.0);
+    // --- PRUEBA DE FUEGO FRACTAL ---
+    // Usamos fbm en lugar de valueNoise.
+    // Multiplicamos por 3.0 para que las nubes sean grandes y majestuosas.
+    // Le sumamos u_time al eje X para simular viento/movimiento.
     
-    // Lo mostramos en escala de grises
-    col = vec3(n); 
-    // =========================================================
+    vec2 pos = uv_noise * 3.0; 
+    pos.x -= u_time * 0.2; // <-- ANIMACIÓN (Viento)
+    
+    float n = fbm(pos);
+    
+    // Convertimos el valor gris (n) en color de FUEGO
+    // n*n*n hace el contraste más fuerte (zonas negras más negras)
+    float heat = n * n * n; 
+    vec3 fireColor = vec3(1.5, 0.5, 0.1) * heat; // Naranja brillante
+    
+    col = fireColor; 
+    // -------------------------------
 
-    imageStore(imgOutput, pixel_coords, vec4(col, 1.0));
+    imageStore(imgOutput, pixel_coords, vec4(col, 1.0)); 
 }
