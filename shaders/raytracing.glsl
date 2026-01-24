@@ -172,10 +172,10 @@ void main() {
     // Multiplicamos por 3.0 para que las nubes sean grandes y majestuosas.
     // Le sumamos u_time al eje X para simular viento/movimiento.
     
-    vec2 pos = uv_noise * 3.0; 
-    pos.x -= u_time * 0.2; // <-- ANIMACIÓN (Viento)
+    vec2 firePos = uv_noise * 3.0; 
+    firePos.x -= u_time * 0.2; // <-- ANIMACIÓN (Viento)
     
-    float n = fbm(pos);
+    float n = fbm(firePos);
     
     // Convertimos el valor gris (n) en color de FUEGO
     // n*n*n hace el contraste más fuerte (zonas negras más negras)
