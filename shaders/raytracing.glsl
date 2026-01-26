@@ -111,75 +111,76 @@ void main() {
     vec3 vel = rd;
     vec3 col = vec3(0.0);
     bool hit = false;
+
+    // Variable para guardar la posición del paso anterior
+    vec3 prevPos = pos;
     
     // Bucle de Raymarching (Paso a paso por el espacio-tiempo)
     for(int i = 0; i < MAX_STEPS; i++){
-        float r = length(pos);
+       // Guardamos posición antes de avanzar
+        prevPos = pos; 
         
-        // 1. COLISIÓN CON HORIZONTE DE EVENTOS (Negro absoluto)
-        if(r < RS * 0.9){ 
-            col = vec3(0.0); 
+        // Avanzamos la física
+        stepRK4(pos, vel, STEP_SIZE);
+        
+        float r = length(pos);
+
+        // 1. COLISIÓN CON HORIZONTE DE EVENTOS (Mejorada)
+        if(r < RS * 1.01){ // Un poco más grande que RS para evitar ruido
+            col = vec3(0.0);
             hit = true; 
             break; 
         }
 
-        // 2. COLISIÓN CON DISCO DE ACRECIÓN (Plano Y=0)
-        if(abs(pos.y) < 0.05 && r > ISCO && r < DISK_MAX){
+        // 2. DETECCIÓN DE CRUCE DEL DISCO (SOLUCIÓN AL HALO)
+        // Si Y cambió de signo (uno positivo, otro negativo), cruzamos el plano.
+        if(prevPos.y * pos.y < 0.0) {
             
-            // --- FASE 6 + 7: TEXTURIZADO Y DOPPLER ---
+            // Interpolación: ¿En qué punto exacto Y fue 0?
+            // Matemáticas: t es el porcentaje del paso donde ocurrió el cruce.
+            float t = prevPos.y / (prevPos.y - pos.y);
+            vec3 hitPoint = mix(prevPos, pos, t); // Punto exacto de choque
+            
+            float hitDist = length(hitPoint); // Distancia desde el centro
 
-            // A. Coordenadas Polares
-            float angle = atan(pos.z, pos.x);
-            
-            // B. Velocidad Orbital (Kepleriana simplificada)
-            float speed = 3.0 / sqrt(r); 
-            float rot_angle = angle + speed * u_time;
+            // Verificamos si ese punto exacto está dentro de los radios del disco
+            if(hitDist > ISCO && hitDist < DISK_MAX){
+                
+                // --- RENDERIZADO DEL DISCO (Usando hitPoint en lugar de pos) ---
+                
+                // A. Coordenadas Polares
+                float angle = atan(hitPoint.z, hitPoint.x);
+                
+                // B. Rotación Diferencial
+                float speed = 12.0 / sqrt(hitDist); // Aumenté velocidad para efecto visual
+                float rot_angle = angle + speed * u_time;
+                
+                // C. Mapeo UV para el ruido
+                vec2 noise_uv = vec2(rot_angle * 3.0, hitDist * 1.5 - u_time);
+                float noise = fbm(noise_uv);
+                
+                // D. Temperatura y Doppler (Simplificado para debug visual)
+                float temp = (DISK_MAX - hitDist) / (DISK_MAX - ISCO);
+                float intensity = temp * noise * 2.0;
+                
+                // Doppler simple: lado izquierdo azulado/brillante, derecho rojizo/oscuro
+                // Usamos el producto punto entre la dirección de vista y la tangente del disco
+                vec3 diskTangent = normalize(vec3(-hitPoint.z, 0.0, hitPoint.x));
+                float doppler = dot(normalize(vel), diskTangent); 
+                // doppler > 0 se aleja (rojo), doppler < 0 se acerca (azul/brillante)
+                float beaming = pow(1.0 - doppler * 0.5, 3.0); 
+                
+                intensity *= beaming;
 
-            // C. Ruido FBM (Tu código existente)
-            vec2 noise_uv = vec2(rot_angle * 4.0, r * 2.0 - u_time);
-            float noise = fbm(noise_uv);
-            
-            // D. Temperatura Base (Gradiente físico)
-            float temp = (DISK_MAX - r) / (DISK_MAX - ISCO);
-            
-            // --- NUEVO: FÍSICA RELATIVISTA (DOPPLER BEAMING) ---
-            
-            // 1. Calcular el vector de velocidad del gas
-            // El gas gira alrededor del eje Y (Up).
-            // Matemáticamente, la velocidad tangencial es el producto cruz entre ARRIBA y la POSICIÓN.
-            vec3 diskNormal = vec3(0.0, 1.0, 0.0);
-            vec3 tangent = normalize(cross(diskNormal, pos)); // Dirección de giro
-            
-            // 2. Calcular alineación con la cámara (Producto Punto)
-            // 'rd' es el rayo desde la cámara. 'tangent' es el gas.
-            // Si el gas viene hacia la cámara, el ángulo es obtuso (producto punto negativo).
-            // Queremos que "venir hacia nosotros" = Mayor Brillo.
-            float beamFactor = dot(tangent, rd); 
-            
-            // 3. Fórmula de Beaming (Aproximación Lorentziana visual)
-            // Usamos (1.0 - beamFactor) para que cuando sean opuestos (gas viene), el valor suba.
-            // Elevamos a una potencia (3.0 o 4.0) para exagerar el efecto relativista.
-            float doppler = pow(max(0.0, 1.0 - beamFactor * 0.8), 3.5);
-            
-            // E. Composición Final del Color
-            float intensity = temp * noise * 2.0;
-            
-            // Aplicamos el Doppler: El lado brillante será MUY brillante (> 1.0), activando el Bloom.
-            intensity *= doppler; 
+                vec3 fireColor = vec3(1.0, 0.6, 0.2) * intensity * 3.0;
+                // Gradiente térmico hacia blanco en el centro
+                fireColor += vec3(0.5, 0.5, 1.0) * smoothstep(0.0, 1.0, intensity - 1.0);
 
-            // Shift de color:
-            // Lado brillante -> Tiende al blanco/azul (temperatura alta)
-            // Lado oscuro -> Tiende al rojo profundo (temperatura baja)
-            vec3 baseColor = vec3(1.0, 0.6, 0.3); // Naranja estándar
-            vec3 shiftColor = mix(vec3(1.0, 0.1, 0.0), vec3(0.8, 0.9, 1.0), clamp(doppler * 0.5, 0.0, 1.0));
-            
-            // Mezclamos todo
-            col = shiftColor * intensity * 5.0; // Multiplicador alto para HDR
-            hit = true;
-            break; 
+                col = fireColor;
+                hit = true;
+                break;
+            }
         }
-
-        stepRK4(pos, vel, STEP_SIZE);
     }
 
     if(!hit) col = getBackground(vel);
