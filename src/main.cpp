@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 #include <cmath>
+// DEFINIR ESTO SOLO EN UN ARCHIVO .CPP ANTES DE INCLUIR LA LIBRERÍA
+#define STB_IMAGE_IMPLEMENTATION 
+#include "stb_image.h" // Asegúrate de que esté en tu carpeta include
 
 // --- CONFIGURACIÓN DE LA SIMULACIÓN ---
 const int WINDOW_WIDTH = 800;
@@ -233,6 +236,44 @@ unsigned int createComputeShaderProgram(const char* computePath){
     return shaderProgram;
 }
 
+unsigned int loadTexture(const char* path) {
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    // stb_image carga la imagen. "0" fuerza a mantener los canales originales.
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    
+    if (data) {
+        GLenum format;
+        if (nrComponents == 1) format = GL_RED;
+        else if (nrComponents == 3) format = GL_RGB;
+        else if (nrComponents == 4) format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        // Subimos los datos a la GPU
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Configuración de envoltorio (Wrapping)
+        // GL_REPEAT es crucial para que el cielo sea continuo si giramos 360 grados
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Evita artefactos en los polos
+        
+        // Filtrado lineal para que no se vea pixelado
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data); // Liberamos la memoria RAM (ya está en VRAM)
+        std::cout << "Textura cargada correctamente: " << path << std::endl;
+    } else {
+        std::cout << "ERROR: No se pudo cargar la textura: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
 int main() {
     // Inicializar GLFW
     if (!glfwInit()) {
@@ -327,6 +368,15 @@ int main() {
     int currentWidth = WINDOW_WIDTH;
     int currentHeight = WINDOW_HEIGHT;
 
+    // 1. Cargar la textura del cielo
+    // Asegúrate de poner la ruta correcta a tu imagen.
+    unsigned int skyboxTexture = loadTexture("../textures/background.jpg"); 
+
+    // 2. Configurar el shader para usarla
+    glUseProgram(computeProgram);
+    // Le decimos al shader que la variable "skybox" leerá de la Unidad de Textura 0
+    glUniform1i(glGetUniformLocation(computeProgram, "skybox"), 0);
+
     //Loop de renderizado
     while (!glfwWindowShouldClose(window)) {
 
@@ -368,8 +418,11 @@ int main() {
         // Enviar posición de la cámara al shader
         glUniform3f(glGetUniformLocation(computeProgram, "u_camPos"), camX, camY, camZ);
 
+        // ACTIVAR LA TEXTURA DEL CIELO
+        glActiveTexture(GL_TEXTURE0); // Activamos la unidad 0
+        glBindTexture(GL_TEXTURE_2D, skyboxTexture); // Ponemos nuestra foto ahí
+
         // ¡LANZAMIENTO!
-        // X = 100, Y = 75, Z = 1
         glDispatchCompute((currentWidth + 7) / 8, (currentHeight + 7) / 8, 1);
 
         // --- BARRERA DE MEMORIA (CRÍTICO) ---

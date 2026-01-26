@@ -7,6 +7,7 @@ layout(rgba32f, binding = 0) uniform image2D imgOutput;
 // --- VARIABLES GLOBALES ---
 uniform float u_time;
 uniform vec3 u_camPos;
+uniform sampler2D skybox;
 
 // --- CONSTANTES DE AGUJERO NEGRO ---
 const float RS = 0.5;           // Radio de Schwarzschild
@@ -60,10 +61,20 @@ float fbm(vec2 uv) {
 
 // Fondo de estrellas simple (con distorsión por lente gravitacional implícita)
 vec3 getBackground(vec3 dir) {
-    float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159);
-    float v = 0.5 - asin(dir.y) / 3.14159;
-    float stars = step(0.995, hash(vec2(u, v) * 500.0)); // Estrellas aleatorias
-    return vec3(stars);
+    // Normalizamos por seguridad
+    vec3 d = normalize(dir);
+
+    // Mapeo de Esfera a Rectángulo (Coordenadas UV)
+    // atan(z, x) nos da el ángulo horizontal (longitud) -> U
+    // asin(y) nos da el ángulo vertical (latitud) -> V
+    
+    float u = 0.5 + atan(d.z, d.x) / (2.0 * 3.14159265);
+    float v = 0.5 + asin(d.y) / 3.14159265;
+    
+    // texture() es la función de GLSL para leer píxeles interpolados
+    vec3 texColor = texture(skybox, vec2(u, v)).rgb;
+    
+    return texColor;
 }
 
 mat3 setCamera(in vec3 ro, in vec3 ta, float cr){
