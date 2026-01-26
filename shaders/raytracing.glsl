@@ -124,38 +124,57 @@ void main() {
         }
 
         // 2. COLISIÓN CON DISCO DE ACRECIÓN (Plano Y=0)
-        // Detectamos si cruzamos el plano Y (cambio de signo o muy cerca de 0)
         if(abs(pos.y) < 0.05 && r > ISCO && r < DISK_MAX){
             
-            // --- AQUÍ EMPIEZA LA MAGIA DE LA FASE 6 ---
-            
-            // A. Coordenadas Polares (Radio y Ángulo)
+            // --- FASE 6 + 7: TEXTURIZADO Y DOPPLER ---
+
+            // A. Coordenadas Polares
             float angle = atan(pos.z, pos.x);
             
-            // B. Animación: Rotación Diferencial
-            // El gas cerca del agujero gira más rápido que el lejano.
-            // (Factor 3.0 para ajustar velocidad visual)
+            // B. Velocidad Orbital (Kepleriana simplificada)
             float speed = 3.0 / sqrt(r); 
             float rot_angle = angle + speed * u_time;
 
-            // C. Mapeo al Ruido
-            // Usamos (rot_angle, r) como coordenadas para el FBM.
-            // Multiplicamos por constantes para ajustar la escala de la textura.
+            // C. Ruido FBM (Tu código existente)
             vec2 noise_uv = vec2(rot_angle * 4.0, r * 2.0 - u_time);
-            
             float noise = fbm(noise_uv);
+            
+            // D. Temperatura Base (Gradiente físico)
+            float temp = (DISK_MAX - r) / (DISK_MAX - ISCO);
+            
+            // --- NUEVO: FÍSICA RELATIVISTA (DOPPLER BEAMING) ---
+            
+            // 1. Calcular el vector de velocidad del gas
+            // El gas gira alrededor del eje Y (Up).
+            // Matemáticamente, la velocidad tangencial es el producto cruz entre ARRIBA y la POSICIÓN.
+            vec3 diskNormal = vec3(0.0, 1.0, 0.0);
+            vec3 tangent = normalize(cross(diskNormal, pos)); // Dirección de giro
+            
+            // 2. Calcular alineación con la cámara (Producto Punto)
+            // 'rd' es el rayo desde la cámara. 'tangent' es el gas.
+            // Si el gas viene hacia la cámara, el ángulo es obtuso (producto punto negativo).
+            // Queremos que "venir hacia nosotros" = Mayor Brillo.
+            float beamFactor = dot(tangent, rd); 
+            
+            // 3. Fórmula de Beaming (Aproximación Lorentziana visual)
+            // Usamos (1.0 - beamFactor) para que cuando sean opuestos (gas viene), el valor suba.
+            // Elevamos a una potencia (3.0 o 4.0) para exagerar el efecto relativista.
+            float doppler = pow(max(0.0, 1.0 - beamFactor * 0.8), 3.5);
+            
+            // E. Composición Final del Color
+            float intensity = temp * noise * 2.0;
+            
+            // Aplicamos el Doppler: El lado brillante será MUY brillante (> 1.0), activando el Bloom.
+            intensity *= doppler; 
 
-            // D. Mapeo de Color (Gradiente de Fuego/Temperatura)
-            // Más caliente (brillante) cerca del centro (ISCO), más frío (rojo) fuera.
-            float temp = (DISK_MAX - r) / (DISK_MAX - ISCO); // 1.0 en el borde interno, 0.0 en el externo
+            // Shift de color:
+            // Lado brillante -> Tiende al blanco/azul (temperatura alta)
+            // Lado oscuro -> Tiende al rojo profundo (temperatura baja)
+            vec3 baseColor = vec3(1.0, 0.6, 0.3); // Naranja estándar
+            vec3 shiftColor = mix(vec3(1.0, 0.1, 0.0), vec3(0.8, 0.9, 1.0), clamp(doppler * 0.5, 0.0, 1.0));
             
-            // Combinamos temperatura física con el caos del ruido
-            float intensity = temp * noise * 2.0; 
-            
-            // Paleta "Blackbody": Rojo -> Naranja -> Blanco
-            vec3 fireColor = vec3(1.0, intensity * 0.5, intensity * 0.1) * intensity * 2.0;
-            
-            col = fireColor;
+            // Mezclamos todo
+            col = shiftColor * intensity * 5.0; // Multiplicador alto para HDR
             hit = true;
             break; 
         }
